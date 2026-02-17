@@ -1,7 +1,10 @@
-import { Bell, Search, User } from "lucide-react";
+import { Bell, Search, User, Sun, Moon } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { useTheme } from "@/contexts/ThemeContext";
 
 export default function TopBar() {
+  const { theme, toggleTheme } = useTheme();
+
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-background/80 px-6 backdrop-blur-md">
       <div className="relative w-80">
@@ -12,6 +15,25 @@ export default function TopBar() {
         />
       </div>
       <div className="flex items-center gap-3">
+        {/* Theme Toggle */}
+        <button
+          onClick={toggleTheme}
+          className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-all hover:bg-secondary"
+          title={`Switch to Theme ${theme === "A" ? "B" : "A"}`}
+        >
+          {theme === "A" ? (
+            <>
+              <Moon className="h-4 w-4 text-primary" />
+              <span className="hidden sm:inline text-muted-foreground">Dark</span>
+            </>
+          ) : (
+            <>
+              <Sun className="h-4 w-4 text-warning" />
+              <span className="hidden sm:inline text-muted-foreground">Light</span>
+            </>
+          )}
+        </button>
+
         <button className="relative rounded-lg p-2 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground">
           <Bell className="h-4 w-4" />
           <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[9px] font-bold text-destructive-foreground">

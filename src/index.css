@@ -1,8 +1,8 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 @layer base {
   :root {
@@ -52,6 +52,8 @@
     --shadow-glow: 0 0 20px hsl(190 95% 45% / 0.15);
   }
 
+  /* Theme A: Dark Neon (TechStock-AI original) */
+  .theme-a,
   .dark {
     --background: 222 30% 7%;
     --foreground: 210 20% 92%;
@@ -93,10 +95,61 @@
     --gradient-primary: linear-gradient(135deg, hsl(190, 95%, 50%), hsl(210, 95%, 60%));
     --gradient-accent: linear-gradient(135deg, hsl(155, 75%, 48%), hsl(190, 95%, 50%));
     --gradient-surface: linear-gradient(180deg, hsl(222, 30%, 7%), hsl(222, 25%, 10%));
+    --gradient-ai: linear-gradient(135deg, hsl(190, 95%, 50%), hsl(270, 70%, 65%));
     --shadow-sm: 0 1px 3px hsl(0 0% 0% / 0.2);
     --shadow-md: 0 4px 12px hsl(0 0% 0% / 0.3);
     --shadow-lg: 0 10px 30px hsl(0 0% 0% / 0.4);
     --shadow-glow: 0 0 20px hsl(190 95% 50% / 0.2);
+  }
+
+  /* Theme B: Clean Light (Stock-Smart style) */
+  .theme-b {
+    --background: 210 40% 98%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+    --primary: 217 91% 60%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222 47% 11%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 210 40% 96%;
+    --accent-foreground: 222 47% 11%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 217 91% 60%;
+    --radius: 0.5rem;
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 215 16% 47%;
+    --sidebar-primary: 217 91% 60%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 210 40% 96%;
+    --sidebar-accent-foreground: 222 47% 11%;
+    --sidebar-border: 214 32% 91%;
+    --sidebar-ring: 217 91% 60%;
+    --sidebar-muted: 210 40% 96%;
+    --chart-1: 217 91% 60%;
+    --chart-2: 142 76% 36%;
+    --chart-3: 38 92% 50%;
+    --chart-4: 270 70% 60%;
+    --chart-5: 0 84% 60%;
+    --gradient-primary: linear-gradient(135deg, hsl(217, 91%, 60%), hsl(199, 89%, 48%));
+    --gradient-accent: linear-gradient(135deg, hsl(142, 76%, 36%), hsl(217, 91%, 60%));
+    --gradient-surface: linear-gradient(180deg, hsl(210, 40%, 98%), hsl(210, 40%, 96%));
+    --gradient-ai: linear-gradient(135deg, hsl(217, 91%, 60%), hsl(270, 70%, 60%));
+    --shadow-sm: 0 1px 2px hsl(222 47% 11% / 0.05);
+    --shadow-md: 0 4px 6px hsl(222 47% 11% / 0.07);
+    --shadow-lg: 0 10px 15px hsl(222 47% 11% / 0.1);
+    --shadow-glow: 0 0 15px hsl(217 91% 60% / 0.15);
   }
 }
 

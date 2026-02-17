@@ -1,25 +1,67 @@
-import { salesData, profitByCategory } from "@/lib/mock-data";
+import { salesData as mockSalesData, profitByCategory as mockProfitByCategory } from "@/lib/mock-data";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from "recharts";
 import { motion } from "framer-motion";
-import { DollarSign, TrendingUp, ShoppingCart, Percent } from "lucide-react";
+import { DollarSign, TrendingUp, ShoppingCart, Percent, RefreshCw, Loader2 } from "lucide-react";
 import StatCard from "@/components/dashboard/StatCard";
+import { useQuery } from "@tanstack/react-query";
+import api, { queryKeys, AnalyticsResponse } from "@/services/api";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function Analytics() {
+  const { 
+    data: analyticsData, 
+    isLoading, 
+    refetch 
+  } = useQuery<AnalyticsResponse>({
+    queryKey: queryKeys.analytics,
+    queryFn: api.getAnalytics,
+    refetchInterval: 60000,
+    retry: 0,
+    staleTime: 60000,
+  });
+
+  const salesData = analyticsData?.salesTrend || mockSalesData;
+  const profitByCategory = analyticsData?.profitByCategory || mockProfitByCategory;
+  
   const totalProfit = profitByCategory.reduce((s, c) => s + c.profit, 0);
   const avgMargin = (profitByCategory.reduce((s, c) => s + c.margin, 0) / profitByCategory.length).toFixed(1);
+  
+  // Find best category
+  const bestCategory = profitByCategory.reduce((best, curr) => 
+    curr.profit > best.profit ? curr : best, profitByCategory[0]);
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground tracking-tight">Profit Analytics</h1>
-        <p className="text-sm text-muted-foreground">Deep dive into your profit performance and trends.</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground tracking-tight">Profit Analytics</h1>
+          <p className="text-sm text-muted-foreground">
+            {isLoading ? "Loading analytics..." : "ML-powered insights into your profit performance."}
+          </p>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isLoading}>
+          <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+          Refresh
+        </Button>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard title="Total Profit (6mo)" value={`₹${(totalProfit / 100000).toFixed(1)}L`} change="+15.3% YoY" changeType="up" icon={DollarSign} />
-        <StatCard title="Avg Margin" value={`${avgMargin}%`} change="Healthy" changeType="up" icon={Percent} />
-        <StatCard title="Best Category" value="GPU" change="₹1.85L profit" changeType="up" icon={TrendingUp} />
-        <StatCard title="Units Sold (Feb)" value="148" change="+12 from Jan" changeType="up" icon={ShoppingCart} />
+        {isLoading ? (
+          <>
+            <Skeleton className="h-28 rounded-xl" />
+            <Skeleton className="h-28 rounded-xl" />
+            <Skeleton className="h-28 rounded-xl" />
+            <Skeleton className="h-28 rounded-xl" />
+          </>
+        ) : (
+          <>
+            <StatCard title="Total Profit (6mo)" value={`₹${(totalProfit / 100000).toFixed(1)}L`} change="+15.3% YoY" changeType="up" icon={DollarSign} />
+            <StatCard title="Avg Margin" value={`${avgMargin}%`} change="Healthy" changeType="up" icon={Percent} />
+            <StatCard title="Best Category" value={bestCategory?.category || "GPU"} change={`₹${((bestCategory?.profit || 185000) / 100000).toFixed(2)}L profit`} changeType="up" icon={TrendingUp} />
+            <StatCard title="Units Sold (Feb)" value="148" change="+12 from Jan" changeType="up" icon={ShoppingCart} />
+          </>
+        )}
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">

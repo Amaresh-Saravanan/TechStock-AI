@@ -136,3 +136,93 @@ export const profitByCategory = [
   { category: 'Motherboard', profit: 35992, margin: 19.6 },
   { category: 'PSU', profit: 29985, margin: 19.0 },
 ];
+
+// Stock-Smart additional data
+
+export interface Vendor {
+  id: string;
+  name: string;
+  rating: number;
+  location: string;
+  email: string;
+  phone: string;
+  specialties: string[];
+  status: 'Active' | 'Inactive' | 'Pending';
+}
+
+export const vendors: Vendor[] = [
+  { id: '1', name: 'TechDistro India', rating: 4.8, location: 'Mumbai, MH', email: 'contact@techdistro.in', phone: '+91 22 1234 5678', specialties: ['GPUs', 'CPUs', 'RAM'], status: 'Active' },
+  { id: '2', name: 'Savex Technologies', rating: 4.6, location: 'Delhi, DL', email: 'sales@savex.in', phone: '+91 11 2345 6789', specialties: ['Storage', 'Networking'], status: 'Active' },
+  { id: '3', name: 'Ingram Micro', rating: 4.9, location: 'Bangalore, KA', email: 'india@ingrammicro.com', phone: '+91 80 3456 7890', specialties: ['Enterprise', 'GPUs', 'Servers'], status: 'Active' },
+  { id: '4', name: 'Redington', rating: 4.5, location: 'Chennai, TN', email: 'sales@redington.in', phone: '+91 44 4567 8901', specialties: ['Components', 'Laptops'], status: 'Active' },
+  { id: '5', name: 'Aditya Infotech', rating: 4.3, location: 'Hyderabad, TS', email: 'info@adityainfo.com', phone: '+91 40 5678 9012', specialties: ['RAM', 'Storage', 'Peripherals'], status: 'Pending' },
+  { id: '6', name: 'CompuAge Infocom', rating: 4.1, location: 'Pune, MH', email: 'orders@compuage.com', phone: '+91 20 6789 0123', specialties: ['Budget Components'], status: 'Inactive' },
+];
+
+export interface MarketplaceItem {
+  id: string;
+  name: string;
+  category: string;
+  price: number;
+  originalPrice: number;
+  seller: string;
+  rating: number;
+  stock: number;
+  image?: string;
+}
+
+export const marketplaceItems: MarketplaceItem[] = [
+  { id: '1', name: 'NVIDIA RTX 4090 Founders Edition', category: 'GPU', price: 159999, originalPrice: 174999, seller: 'TechDistro', rating: 4.9, stock: 3 },
+  { id: '2', name: 'AMD Ryzen 9 7950X3D', category: 'CPU', price: 52999, originalPrice: 58999, seller: 'Savex', rating: 4.8, stock: 8 },
+  { id: '3', name: 'G.Skill Trident Z5 RGB 64GB DDR5', category: 'RAM', price: 21999, originalPrice: 24999, seller: 'Ingram', rating: 4.7, stock: 15 },
+  { id: '4', name: 'Samsung 990 Pro 4TB', category: 'SSD', price: 32999, originalPrice: 36999, seller: 'Redington', rating: 4.8, stock: 12 },
+  { id: '5', name: 'ASUS ROG Crosshair X670E Hero', category: 'Motherboard', price: 54999, originalPrice: 59999, seller: 'TechDistro', rating: 4.6, stock: 5 },
+  { id: '6', name: 'Corsair HX1500i', category: 'PSU', price: 28999, originalPrice: 31999, seller: 'Savex', rating: 4.9, stock: 7 },
+];
+
+export interface BuyTimingItem {
+  id: string;
+  product: string;
+  currentPrice: number;
+  predictedPrice: number;
+  recommendation: 'BUY NOW' | 'WAIT' | 'HOLD';
+  confidence: number;
+  reason: string;
+  daysToWait?: number;
+}
+
+export const buyTimingItems: BuyTimingItem[] = [
+  { id: '1', product: 'NVIDIA RTX 4070 Super', currentPrice: 52999, predictedPrice: 48999, recommendation: 'WAIT', confidence: 85, reason: 'Price expected to drop with RTX 50 series announcement', daysToWait: 30 },
+  { id: '2', product: 'AMD Ryzen 7 7800X3D', currentPrice: 34999, predictedPrice: 36999, recommendation: 'BUY NOW', confidence: 92, reason: 'Supply constraints expected, prices likely to rise' },
+  { id: '3', product: 'Corsair Vengeance DDR5 32GB', currentPrice: 8999, predictedPrice: 8499, recommendation: 'HOLD', confidence: 68, reason: 'Slight price drop possible, but not significant' },
+  { id: '4', product: 'Samsung 990 Pro 2TB', currentPrice: 14499, predictedPrice: 12999, recommendation: 'WAIT', confidence: 78, reason: 'New models coming, current gen will see discounts', daysToWait: 45 },
+  { id: '5', product: 'Intel Core i9-14900K', currentPrice: 49999, predictedPrice: 52999, recommendation: 'BUY NOW', confidence: 88, reason: 'Limited stock, high demand in enterprise segment' },
+];
+
+export const buyTimingChartData = [
+  { month: 'Sep', actual: 35000, predicted: 35000 },
+  { month: 'Oct', actual: 34500, predicted: 34800 },
+  { month: 'Nov', actual: 34000, predicted: 34200 },
+  { month: 'Dec', actual: 34999, predicted: 33800 },
+  { month: 'Jan', actual: 34500, predicted: 33500 },
+  { month: 'Feb', actual: null, predicted: 33000 },
+  { month: 'Mar', actual: null, predicted: 32500 },
+  { month: 'Apr', actual: null, predicted: 32000 },
+];
+
+export const marketInsights = [
+  { id: '1', title: 'GPU Market Shift', description: 'RTX 40 series prices declining as RTX 50 announcement approaches. Consider reducing inventory.', score: 'High', category: 'Market Trend' },
+  { id: '2', title: 'DDR5 Adoption Rising', description: 'DDR5 RAM demand increasing 40% month-over-month. Stock up on popular configurations.', score: 'High', category: 'Opportunity' },
+  { id: '3', title: 'SSD Price War', description: 'NAND flash prices continue to fall. Expect 10-15% price drops in next quarter.', score: 'Medium', category: 'Price Alert' },
+  { id: '4', title: 'AMD CPU Demand', description: 'Ryzen 7000X3D series seeing exceptional demand. Limited supply from distributors.', score: 'High', category: 'Supply Alert' },
+  { id: '5', title: 'Peripheral Slowdown', description: 'Gaming peripheral sales slowing. Consider clearance sales on slow-moving inventory.', score: 'Low', category: 'Market Trend' },
+];
+
+export const profitTrendData = [
+  { month: 'Sep', profit: 68000 },
+  { month: 'Oct', profit: 82000 },
+  { month: 'Nov', profit: 112000 },
+  { month: 'Dec', profit: 145000 },
+  { month: 'Jan', profit: 118000 },
+  { month: 'Feb', profit: 105000 },
+];

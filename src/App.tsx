@@ -17,6 +17,10 @@ import Settings from "./pages/Settings";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import NotFound from "./pages/NotFound";
+import VendorConnect from "./pages/VendorConnect";
+import Marketplace from "./pages/Marketplace";
+import BuyTiming from "./pages/BuyTiming";
+import AIAdvisor from "./pages/AIAdvisor";
 
 const queryClient = new QueryClient();
 
@@ -40,6 +44,10 @@ const App = () => (
             <Route path="/alerts" element={<Alerts />} />
             <Route path="/admin" element={<Admin />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/vendor-connect" element={<VendorConnect />} />
+            <Route path="/marketplace" element={<Marketplace />} />
+            <Route path="/buy-timing" element={<BuyTiming />} />
+            <Route path="/ai-advisor" element={<AIAdvisor />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>
