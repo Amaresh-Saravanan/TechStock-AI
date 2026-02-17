@@ -62,7 +62,7 @@ export default function Register() {
                 </Select>
               </div>
             </div>
-            <Button onClick={() => navigate("/")} className="w-full gradient-primary text-primary-foreground font-semibold shadow-glow">
+            <Button onClick={() => navigate("/dashboard")} className="w-full gradient-primary text-primary-foreground font-semibold shadow-glow">
               Create Account
             </Button>
           </div>
