@@ -13,28 +13,27 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SalesModal } from "@/components/sales/SalesModal";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
-import { SalesModal } from "@/components/sales/SalesModal";
-import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 
 // Transform API inventory to local format
 function transformAPIItem(item: APIInventoryItem): InventoryItem & { demand?: any; status?: string } {
   return {
     id: item.id,
     productName: item.name,
-    category: item.category,
+    category: item.category as any, // Cast to any to avoid strict union type mismatch
     brand: item.brand,
+    model: "", // Add missing field if needed or keep existing logic
     purchasePrice: item.purchasePrice,
     sellingPrice: item.sellingPrice,
     quantity: item.quantity,
     distributor: "Distributor",
+    purchaseDate: "", // Missing from API
+    lastSoldDate: null,
+    generation: "", // Missing from API
     demand: item.demand,
     status: item.status,
   };
 }
 
-  // Sales modal state
-  const [salesModalOpen, setSalesModalOpen] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState<APIInventoryItem | null>(null);
 // Get quantity status with color
 function getQuantityStatus(quantity: number): { status: string; color: string; bgColor: string } {
   if (quantity === 0) {
@@ -75,10 +74,10 @@ function getDaysSinceLastSold(lastSoldDate: string | undefined | null): number {
 }
 
 export default function Inventory() {
-  const { 
-    data: inventoryData, 
-    isLoading, 
-    refetch 
+  const {
+    data: inventoryData,
+    isLoading,
+    refetch
   } = useQuery<InventoryResponse>({
     queryKey: queryKeys.inventory,
     queryFn: api.getInventory,
@@ -91,6 +90,8 @@ export default function Inventory() {
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [salesModalOpen, setSalesModalOpen] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
 
   // Update items when API data arrives
   useEffect(() => {
@@ -115,8 +116,8 @@ export default function Inventory() {
       .filter(item => {
         const demand = item.demand?.level || 'Medium';
         const profit = item.sellingPrice - item.purchasePrice;
-        return ((demand === 'High' || demand === 'Peak') && item.quantity <= 15) || 
-               (profit > 2000 && item.quantity <= 10 && !isDeadStock(item.lastSoldDate));
+        return ((demand === 'High' || demand === 'Peak') && item.quantity <= 15) ||
+          (profit > 2000 && item.quantity <= 10 && !isDeadStock(item.lastSoldDate));
       })
       .slice(0, 4);
 
@@ -176,9 +177,7 @@ export default function Inventory() {
                   <div><Label className="text-xs text-muted-foreground">Product Name</Label><Input placeholder="e.g. RTX 4060" className="mt-1 bg-secondary border-none" /></div>
                   <div><Label className="text-xs text-muted-foreground">Category</Label>
                     <Select><SelectTrigger className="mt-1 bg-secondary border-none"><SelectValue placeholder="Select" /></SelectTrigger>
-                      <SelectContent>{['CPU','GPU','RAM','SSD','HDD','Motherboard','PSU','Case'].map(c=><SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
-      {/* Sales Modal */}
-      <SalesModal open={salesModalOpen} onOpenChange={setSalesModalOpen} product={selectedProduct} />
+                      <SelectContent>{['CPU', 'GPU', 'RAM', 'SSD', 'HDD', 'Motherboard', 'PSU', 'Case'].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
                 </div>
@@ -197,6 +196,9 @@ export default function Inventory() {
           </Dialog>
         </div>
       </div>
+
+      {/* Sales Modal Component - kept outside of Select and Dialog */}
+      <SalesModal open={salesModalOpen} onOpenChange={setSalesModalOpen} product={selectedProduct} />
 
       {/* Quick Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -400,7 +402,7 @@ export default function Inventory() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Categories</SelectItem>
-            {['CPU','GPU','RAM','SSD','HDD','Motherboard','PSU','Case'].map(c=><SelectItem key={c} value={c}>{c}</SelectItem>)}
+            {['CPU', 'GPU', 'RAM', 'SSD', 'HDD', 'Motherboard', 'PSU', 'Case'].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
           </SelectContent>
         </Select>
       </div>
@@ -432,7 +434,7 @@ export default function Inventory() {
                   const quantityStatus = getQuantityStatus(item.quantity);
                   const daysSinceLastSold = getDaysSinceLastSold(item.lastSoldDate);
                   const isItemDeadStock = isDeadStock(item.lastSoldDate);
-                  
+
                   return (
                     <tr key={item.id} className="border-b border-border/50 transition-colors hover:bg-secondary/30">
                       <td className="px-4 py-3">
@@ -445,7 +447,7 @@ export default function Inventory() {
                       <td className="px-4 py-3 text-right font-mono text-xs text-muted-foreground">₹{item.purchasePrice.toLocaleString()}</td>
                       <td className="px-4 py-3 text-right font-mono text-xs text-card-foreground font-medium">₹{item.sellingPrice.toLocaleString()}</td>
                       <td className="px-4 py-3 text-right">
-                        <span 
+                        <span
                           className="font-mono text-xs font-medium px-2 py-0.5 rounded-md"
                           style={{ color: profitColor.color, backgroundColor: profitColor.bgColor }}
                         >
@@ -453,7 +455,7 @@ export default function Inventory() {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-center">
-                        <span 
+                        <span
                           className="font-mono text-xs font-bold px-2 py-1 rounded-md"
                           style={{ color: quantityStatus.color, backgroundColor: quantityStatus.bgColor }}
                         >
@@ -461,7 +463,7 @@ export default function Inventory() {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-center">
-                        <span 
+                        <span
                           className="rounded-md px-2 py-0.5 text-[10px] font-medium"
                           style={{ color: quantityStatus.color, backgroundColor: quantityStatus.bgColor }}
                         >
@@ -469,7 +471,7 @@ export default function Inventory() {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-center">
-                        <span 
+                        <span
                           className="text-xs font-medium"
                           style={{ color: isItemDeadStock ? "#EF4444" : "#22C55E" }}
                         >
@@ -478,8 +480,15 @@ export default function Inventory() {
                       </td>
                       <td className="px-4 py-3 text-center">
                         <div className="flex justify-center gap-1">
-                          <button className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"><Edit className="h-3.5 w-3.5" /></button>
-                          <button onClick={() => handleDelete(item.id)} className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"><Trash2 className="h-3.5 w-3.5" /></button>
+                          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => {
+                            setSelectedProduct(item);
+                            setSalesModalOpen(true);
+                          }}>
+                            <Edit className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => handleDelete(item.id)}>
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
                         </div>
                       </td>
                     </tr>

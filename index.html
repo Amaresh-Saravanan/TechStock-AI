@@ -18,6 +18,19 @@
 
   <body>
     <div id="root"></div>
+    <div id="global-error" style="display:none; padding:20px; background:#ffeeee; color:red; position:fixed; top:0; left:0; width:100%; z-index:9999;"></div>
+    <script>
+      window.onerror = function(message, source, lineno, colno, error) {
+        var el = document.getElementById('global-error');
+        el.style.display = 'block';
+        el.innerHTML = '<strong>Global Error:</strong> ' + message + '<br>Source: ' + source + ':' + lineno;
+      };
+      window.onunhandledrejection = function(event) {
+        var el = document.getElementById('global-error');
+        el.style.display = 'block';
+        el.innerHTML += '<br><strong>Unhandled Rejection:</strong> ' + event.reason;
+      };
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { queryKeys, SalesHistoryResponse } from "@/services/api";
+import { queryKeys, SalesHistoryResponse, api } from "@/services/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TrendingUp, User, Package, IndianRupee } from "lucide-react";
