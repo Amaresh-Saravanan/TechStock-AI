@@ -329,24 +329,61 @@ async function fetchAPI<T>(endpoint: string): Promise<T> {
 
 async function postAPI<T>(endpoint: string, data: unknown): Promise<T> {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout for POST
-  
+  const timeoutId = setTimeout(() => controller.abort(), 5000);
   try {
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
       signal: controller.signal,
     });
     clearTimeout(timeoutId);
-    
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error || `API Error: ${response.status} ${response.statusText}`);
+      throw new Error(errorData.error || `API Error: ${response.status}`);
     }
-    
+    return response.json();
+  } catch (error) {
+    clearTimeout(timeoutId);
+    throw error;
+  }
+}
+
+async function putAPI<T>(endpoint: string, data: unknown): Promise<T> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 5000);
+  try {
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || `API Error: ${response.status}`);
+    }
+    return response.json();
+  } catch (error) {
+    clearTimeout(timeoutId);
+    throw error;
+  }
+}
+
+async function deleteAPI<T>(endpoint: string): Promise<T> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 5000);
+  try {
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      method: 'DELETE',
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || `API Error: ${response.status}`);
+    }
     return response.json();
   } catch (error) {
     clearTimeout(timeoutId);
@@ -363,6 +400,15 @@ export const api = {
   
   // Inventory
   getInventory: () => fetchAPI<InventoryResponse>('/inventory'),
+  
+  addInventoryItem: (data: Partial<InventoryItem>) => 
+    postAPI<{ success: boolean; item: InventoryItem }>('/inventory', data),
+    
+  updateInventoryItem: (id: string, data: Partial<InventoryItem>) => 
+    putAPI<{ success: boolean; item: InventoryItem }>(`/inventory/${id}`, data),
+    
+  deleteInventoryItem: (id: string) => 
+    deleteAPI<{ success: boolean }>(`/inventory/${id}`),
   
   // Price predictions
   getPricePrediction: (productId: string) => 

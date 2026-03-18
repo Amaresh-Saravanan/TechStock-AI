@@ -1,18 +1,120 @@
-import { Bell, Search, User, Sun, Moon } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { Bell, Search, User, Sun, Moon, Package, ArrowRight } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useTheme } from "@/contexts/ThemeContext";
+import { useQuery } from "@tanstack/react-query";
+import api, { queryKeys, InventoryResponse } from "@/services/api";
+import { useNavigate } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
 
 export default function TopBar() {
   const { theme, toggleTheme } = useTheme();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
+
+  const { data: inventoryData } = useQuery<InventoryResponse>({
+    queryKey: queryKeys.inventory,
+    queryFn: api.getInventory,
+    staleTime: 60000,
+  });
+
+  const products = inventoryData?.items || [];
+  
+  const displayProducts = searchQuery.trim() 
+    ? products.filter(product => {
+        const lowerQuery = searchQuery.toLowerCase();
+        return (
+          product.name.toLowerCase().includes(lowerQuery) ||
+          product.category.toLowerCase().includes(lowerQuery) ||
+          product.brand.toLowerCase().includes(lowerQuery)
+        );
+      }).slice(0, 5)
+    : products.slice(0, 5); // Default suggested products when empty
+
+  // Handle clicking outside to close search
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+        setIsSearchOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-background/80 px-6 backdrop-blur-md">
-      <div className="relative w-80">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+      <div className="relative w-80 max-w-md" ref={searchRef}>
+        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground z-10" />
         <Input
           placeholder="Search products, categories..."
-          className="pl-10 bg-secondary border-none text-sm"
+          className="pl-10 bg-secondary border-none text-sm relative z-10"
+          value={searchQuery}
+          onChange={(e) => {
+            setSearchQuery(e.target.value);
+            setIsSearchOpen(true);
+          }}
+          onFocus={() => setIsSearchOpen(true)}
         />
+        
+        <AnimatePresence>
+          {isSearchOpen && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.15 }}
+              className="absolute left-0 right-0 top-full mt-2 bg-popover border border-border rounded-xl shadow-lg overflow-hidden z-50 flex flex-col"
+            >
+              <div className="max-h-[350px] overflow-y-auto">
+                {displayProducts.length > 0 ? (
+                  <div className="p-2 flex flex-col">
+                    <p className="px-3 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      {searchQuery.trim() ? "Search Results" : "Suggested Products"}
+                    </p>
+                    {displayProducts.map(product => (
+                      <div
+                        key={product.id}
+                        className="flex items-center justify-between p-3 rounded-lg hover:bg-secondary cursor-pointer transition-colors group"
+                        onClick={() => {
+                          setSearchQuery("");
+                          setIsSearchOpen(false);
+                          navigate('/inventory'); // Redirect to inventory
+                        }}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 bg-primary/10 rounded-md text-primary">
+                            <Package className="h-4 w-4" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium leading-none mb-1 group-hover:text-primary transition-colors">
+                              {product.name}
+                            </p>
+                            <p className="text-xs text-muted-foreground flex gap-2">
+                              <span>{product.category}</span>
+                              <span>•</span>
+                              <span>{product.brand}</span>
+                              <span>•</span>
+                              <span>₹{product.sellingPrice.toLocaleString()}</span>
+                            </p>
+                          </div>
+                        </div>
+                        <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-6 text-center text-sm text-muted-foreground flex flex-col items-center justify-center">
+                    <Search className="h-8 w-8 mb-2 opacity-20" />
+                    No products found for "{searchQuery}"
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
       <div className="flex items-center gap-3">
         {/* Theme Toggle */}

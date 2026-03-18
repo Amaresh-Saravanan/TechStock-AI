@@ -93,6 +93,23 @@ export default function Inventory() {
   const [salesModalOpen, setSalesModalOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
 
+  // New product form states
+  const [newName, setNewName] = useState("");
+  const [newCategory, setNewCategory] = useState("CPU");
+  const [newBrand, setNewBrand] = useState("");
+  const [newPurchasePrice, setNewPurchasePrice] = useState("");
+  const [newSellingPrice, setNewSellingPrice] = useState("");
+  const [newQuantity, setNewQuantity] = useState("");
+
+  const resetForm = () => {
+    setNewName("");
+    setNewCategory("CPU");
+    setNewBrand("");
+    setNewPurchasePrice("");
+    setNewSellingPrice("");
+    setNewQuantity("");
+  };
+
   // Update items when API data arrives
   useEffect(() => {
     if (inventoryData?.items) {
@@ -143,8 +160,34 @@ export default function Inventory() {
     return matchSearch && matchCategory;
   });
 
-  const handleDelete = (id: string) => setItems(items.filter((i) => i.id !== id));
+  const handleDelete = async (id: string) => {
+    try {
+      await api.deleteInventoryItem(id);
+      refetch();
+    } catch (error) {
+      console.error("Failed to delete item", error);
+    }
+  };
 
+  const handleAddProduct = async () => {
+    if (!newName || !newPurchasePrice || !newSellingPrice || !newQuantity) return;
+    
+    try {
+      await api.addInventoryItem({
+        name: newName,
+        category: newCategory,
+        brand: newBrand || "Generic",
+        purchasePrice: Number(newPurchasePrice),
+        sellingPrice: Number(newSellingPrice),
+        quantity: Number(newQuantity)
+      });
+      setDialogOpen(false);
+      resetForm();
+      refetch();
+    } catch (error) {
+      console.error("Failed to add item", error);
+    }
+  };
   const totalValue = inventoryData?.summary?.totalValue || items.reduce((s, i) => s + i.sellingPrice * i.quantity, 0);
   const avgMargin = inventoryData?.summary?.avgProfitMargin || 18.5;
 
@@ -174,23 +217,47 @@ export default function Inventory() {
               </DialogHeader>
               <div className="grid gap-3 py-2">
                 <div className="grid grid-cols-2 gap-3">
-                  <div><Label className="text-xs text-muted-foreground">Product Name</Label><Input placeholder="e.g. RTX 4060" className="mt-1 bg-secondary border-none" /></div>
-                  <div><Label className="text-xs text-muted-foreground">Category</Label>
-                    <Select><SelectTrigger className="mt-1 bg-secondary border-none"><SelectValue placeholder="Select" /></SelectTrigger>
-                      <SelectContent>{['CPU', 'GPU', 'RAM', 'SSD', 'HDD', 'Motherboard', 'PSU', 'Case'].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Product Name</Label>
+                    <Input placeholder="e.g. RTX 4060" value={newName} onChange={(e) => setNewName(e.target.value)} className="mt-1 bg-secondary border-none" />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Category</Label>
+                    <Select value={newCategory} onValueChange={setNewCategory}>
+                      <SelectTrigger className="mt-1 bg-secondary border-none"><SelectValue placeholder="Select" /></SelectTrigger>
+                      <SelectContent>
+                        {['CPU', 'GPU', 'RAM', 'SSD', 'HDD', 'Motherboard', 'PSU', 'Case'].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                      </SelectContent>
                     </Select>
                   </div>
                 </div>
                 <div className="grid grid-cols-3 gap-3">
-                  <div><Label className="text-xs text-muted-foreground">Purchase Price</Label><Input type="number" placeholder="₹" className="mt-1 bg-secondary border-none" /></div>
-                  <div><Label className="text-xs text-muted-foreground">Selling Price</Label><Input type="number" placeholder="₹" className="mt-1 bg-secondary border-none" /></div>
-                  <div><Label className="text-xs text-muted-foreground">Quantity</Label><Input type="number" placeholder="0" className="mt-1 bg-secondary border-none" /></div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Purchase Price</Label>
+                    <Input type="number" placeholder="₹" value={newPurchasePrice} onChange={(e) => setNewPurchasePrice(e.target.value)} className="mt-1 bg-secondary border-none" />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Selling Price</Label>
+                    <Input type="number" placeholder="₹" value={newSellingPrice} onChange={(e) => setNewSellingPrice(e.target.value)} className="mt-1 bg-secondary border-none" />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Quantity</Label>
+                    <Input type="number" placeholder="0" value={newQuantity} onChange={(e) => setNewQuantity(e.target.value)} className="mt-1 bg-secondary border-none" />
+                  </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  <div><Label className="text-xs text-muted-foreground">Brand</Label><Input placeholder="e.g. NVIDIA" className="mt-1 bg-secondary border-none" /></div>
-                  <div><Label className="text-xs text-muted-foreground">Distributor</Label><Input placeholder="e.g. Savex" className="mt-1 bg-secondary border-none" /></div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Brand</Label>
+                    <Input placeholder="e.g. NVIDIA" value={newBrand} onChange={(e) => setNewBrand(e.target.value)} className="mt-1 bg-secondary border-none" />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Distributor</Label>
+                    <Input placeholder="e.g. Savex" className="mt-1 bg-secondary border-none" />
+                  </div>
                 </div>
-                <Button className="mt-2 gradient-primary text-primary-foreground font-semibold" onClick={() => setDialogOpen(false)}>Add Product</Button>
+                <Button className="mt-2 gradient-primary text-primary-foreground font-semibold" onClick={handleAddProduct} disabled={!newName || !newPurchasePrice || !newSellingPrice || !newQuantity}>
+                  Add Product
+                </Button>
               </div>
             </DialogContent>
           </Dialog>

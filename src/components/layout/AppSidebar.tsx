@@ -7,24 +7,22 @@ import {
   Cpu,
   BarChart3,
   Bell,
-  Shield,
   Settings,
   LogOut,
   Zap,
   ChevronLeft,
   ChevronRight,
-  Users,
-  ShoppingCart,
-  MapPin,
   Lightbulb,
   Clock,
 } from "lucide-react";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useSidebar } from "@/contexts/SidebarContext";
+import { useAuth } from "@/contexts/AuthContext";
 
 // Main menu items
 const mainNavItems = [
   { label: "Dashboard", icon: LayoutDashboard, path: "/dashboard" },
+  { label: "Sales Analytics", icon: BarChart3, path: "/sales" },
   { label: "Inventory", icon: Package, path: "/inventory" },
   { label: "Price Tracker", icon: TrendingUp, path: "/price-tracker" },
   { label: "AI Predictions", icon: Brain, path: "/predictions" },
@@ -35,12 +33,7 @@ const mainNavItems = [
   { label: "Alerts", icon: Bell, path: "/alerts" },
 ];
 
-// Business section - Vendor, Marketplace, Admin grouped together
-const businessNavItems = [
-  { label: "VendorConnect", icon: Users, path: "/vendor-connect" },
-  { label: "Marketplace", icon: ShoppingCart, path: "/marketplace" },
-  { label: "Admin Panel", icon: Shield, path: "/admin" },
-];
+
 
 const bottomItems = [
   { label: "Settings", icon: Settings, path: "/settings" },
@@ -50,6 +43,7 @@ export default function AppSidebar() {
   const location = useLocation();
   const { theme } = useTheme();
   const { collapsed, toggleCollapsed } = useSidebar();
+  const { logout } = useAuth();
 
   // Theme B (light) has collapsible sidebar
   const isCollapsible = theme === "B";
@@ -103,15 +97,13 @@ export default function AppSidebar() {
               key={item.path}
               to={item.path}
               title={isCollapsed ? item.label : undefined}
-              className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150 ${
-                isCollapsed ? "justify-center" : ""
-              } ${
-                active
+              className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150 ${isCollapsed ? "justify-center" : ""
+                } ${active
                   ? theme === "A"
                     ? "bg-primary/10 text-primary shadow-glow"
                     : "bg-primary/10 text-primary"
                   : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-              }`}
+                }`}
             >
               <item.icon className={`h-4 w-4 shrink-0 ${active ? "text-primary" : ""}`} />
               {!isCollapsed && (
@@ -128,35 +120,7 @@ export default function AppSidebar() {
           );
         })}
 
-        {/* Business Section */}
-        {!isCollapsed && (
-          <p className="mt-4 mb-2 px-3 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground">
-            Business
-          </p>
-        )}
-        {isCollapsed && <div className="my-2 border-t border-sidebar-border" />}
-        {businessNavItems.map((item) => {
-          const active = location.pathname === item.path;
-          return (
-            <Link
-              key={item.path}
-              to={item.path}
-              title={isCollapsed ? item.label : undefined}
-              className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150 ${
-                isCollapsed ? "justify-center" : ""
-              } ${
-                active
-                  ? theme === "A"
-                    ? "bg-primary/10 text-primary shadow-glow"
-                    : "bg-primary/10 text-primary"
-                  : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-              }`}
-            >
-              <item.icon className={`h-4 w-4 shrink-0 ${active ? "text-primary" : ""}`} />
-              {!isCollapsed && <span className="truncate">{item.label}</span>}
-            </Link>
-          );
-        })}
+
       </nav>
 
       {/* Bottom */}
@@ -166,24 +130,22 @@ export default function AppSidebar() {
             key={item.path}
             to={item.path}
             title={isCollapsed ? item.label : undefined}
-            className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground ${
-              isCollapsed ? "justify-center" : ""
-            }`}
+            className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground ${isCollapsed ? "justify-center" : ""
+              }`}
           >
             <item.icon className="h-4 w-4 shrink-0" />
             {!isCollapsed && item.label}
           </Link>
         ))}
-        <Link
-          to="/login"
+        <button
+          onClick={() => logout()}
           title={isCollapsed ? "Logout" : undefined}
-          className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-sidebar-foreground transition-colors hover:bg-destructive/10 hover:text-destructive ${
-            isCollapsed ? "justify-center" : ""
-          }`}
+          className={`w-full flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-sidebar-foreground transition-colors hover:bg-destructive/10 hover:text-destructive ${isCollapsed ? "justify-center" : ""
+            }`}
         >
           <LogOut className="h-4 w-4 shrink-0" />
           {!isCollapsed && "Logout"}
-        </Link>
+        </button>
       </div>
     </aside>
   );

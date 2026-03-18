@@ -1,12 +1,33 @@
-from flask import Flask, jsonify, request
+import os
+import random
+import json
+from datetime import datetime, timedelta, timezone
+from typing import Optional, List
+
+from flask import Flask, jsonify, request, make_response
 from flask_cors import CORS
+from flask_sqlalchemy import SQLAlchemy
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+from loguru import logger
+from pydantic import BaseModel, ValidationError
+import jwt
+from werkzeug.security import generate_password_hash, check_password_hash
+
 import numpy as np
 import pandas as pd
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import PolynomialFeatures
-from datetime import datetime, timedelta
-import random
-import os
+
+# Load env file if python-dotenv is installed
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
+# Initialize Loguru
+logger.add("backend/logs/app.log", rotation="500 MB", level="INFO", enqueue=True)
 
 # Gemini AI Setup
 try:
@@ -24,7 +45,135 @@ except ImportError:
     gemini_model = None
 
 app = Flask(__name__)
-CORS(app)
+
+# Basic Config
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-prod-123')
+app.config['JWT_SECRET_KEY'] = os.environ.get('JWT_SECRET_KEY', 'dev-jwt-secret-key-change-in-prod-123')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///techstock.db')
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# Restrict CORS origins
+FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:5173')
+CORS(app, supports_credentials=True, origins=[FRONTEND_URL, "http://127.0.0.1:5173"])
+
+# Setup Limiter
+limiter = Limiter(
+    get_remote_address,
+    app=app,
+    default_limits=["1000 per day", "200 per hour"],
+    storage_uri="memory://"
+)
+
+# Setup SQLAlchemy
+db = SQLAlchemy(app)
+
+# ============== DATABASE MODELS ==============
+class User(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    email = db.Column(db.String(120), unique=True, nullable=False, index=True)
+    password_hash = db.Column(db.String(256), nullable=False)
+    role = db.Column(db.String(50), default='retailer')
+    store_name = db.Column(db.String(100), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def set_password(self, password):
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        return check_password_hash(self.password_hash, password)
+
+    def to_dict(self):
+        return {
+            "id": str(self.id),
+            "name": self.name,
+            "email": self.email,
+            "role": self.role,
+            "storeName": self.store_name
+        }
+
+class InventoryItem(db.Model):
+    id = db.Column(db.String(50), primary_key=True)
+    name = db.Column(db.String(150), nullable=False)
+    category = db.Column(db.String(50), nullable=False)
+    brand = db.Column(db.String(50), nullable=False)
+    purchasePrice = db.Column(db.Float, nullable=False)
+    sellingPrice = db.Column(db.Float, nullable=False)
+    quantity = db.Column(db.Integer, nullable=False, default=0)
+    lastSoldDays = db.Column(db.Integer, nullable=False, default=0)
+    demandScore = db.Column(db.Integer, nullable=False, default=50)
+    totalSold = db.Column(db.Integer, nullable=False, default=0)
+
+    def to_dict(self):
+        return {
+            "id": self.id, "name": self.name, "category": self.category,
+            "brand": self.brand, "purchasePrice": self.purchasePrice,
+            "sellingPrice": self.sellingPrice, "quantity": self.quantity,
+            "lastSoldDays": self.lastSoldDays, "demandScore": self.demandScore,
+            "totalSold": self.totalSold
+        }
+
+class SaleRecordModel(db.Model):
+    id = db.Column(db.String(50), primary_key=True)
+    productId = db.Column(db.String(50), nullable=False)
+    productName = db.Column(db.String(150), nullable=False)
+    category = db.Column(db.String(50), nullable=False)
+    brand = db.Column(db.String(50), nullable=False)
+    quantity = db.Column(db.Integer, nullable=False)
+    soldPrice = db.Column(db.Float, nullable=False)
+    purchasePrice = db.Column(db.Float, nullable=False)
+    profit = db.Column(db.Float, nullable=False)
+    profitMargin = db.Column(db.Float, nullable=False)
+    customerName = db.Column(db.String(150), nullable=True)
+    customerPhone = db.Column(db.String(50), nullable=True)
+    soldAt = db.Column(db.String(50), nullable=False)
+
+    def to_dict(self):
+        return {
+            "id": self.id, "productId": self.productId, "productName": self.productName,
+            "category": self.category, "brand": self.brand, "quantity": self.quantity,
+            "soldPrice": self.soldPrice, "purchasePrice": self.purchasePrice,
+            "profit": self.profit, "profitMargin": self.profitMargin,
+            "customerName": self.customerName, "customerPhone": self.customerPhone,
+            "soldAt": self.soldAt
+        }
+
+with app.app_context():
+    db.create_all()
+
+# ============== PYDANTIC SCHEMAS ==============
+class RegisterSchema(BaseModel):
+    name: str
+    email: str
+    password: str
+    storeName: str
+    role: str
+
+class LoginSchema(BaseModel):
+    email: str
+    password: str
+
+# JWT Helper functions
+def generate_token(user_id):
+    payload = {
+        'exp': datetime.now(timezone.utc) + timedelta(days=1),
+        'iat': datetime.now(timezone.utc),
+        'sub': user_id
+    }
+    return jwt.encode(payload, app.config['JWT_SECRET_KEY'], algorithm='HS256')
+
+def get_current_user_from_cookie():
+    token = request.cookies.get('auth_token')
+    if not token:
+        return None
+    try:
+        payload = jwt.decode(token, app.config['JWT_SECRET_KEY'], algorithms=['HS256'])
+        user = User.query.get(payload['sub'])
+        return user
+    except jwt.ExpiredSignatureError:
+        return None
+    except jwt.InvalidTokenError:
+        return None
 
 # ============== MOCK DATA STORE ==============
 
@@ -40,6 +189,40 @@ INVENTORY_DATA = [
     {"id": "9", "name": "Corsair RM850x", "category": "PSU", "brand": "Corsair", "purchasePrice": 8500, "sellingPrice": 10499, "quantity": 15, "lastSoldDays": 2, "demandScore": 78, "totalSold": 18},
     {"id": "10", "name": "NVIDIA RTX 4060", "category": "GPU", "brand": "NVIDIA", "purchasePrice": 24000, "sellingPrice": 29999, "quantity": 20, "lastSoldDays": 1, "demandScore": 90, "totalSold": 25},
 ]
+
+SALES_HISTORY = [
+    {
+        "id": "sale-1", "productId": "1", "productName": "AMD Ryzen 7 7800X3D", "category": "CPU",
+        "brand": "AMD", "quantity": 1, "soldPrice": 34999, "purchasePrice": 28500,
+        "profit": 6499, "profitMargin": 22.8, "customerName": "Rahul Sharma",
+        "customerPhone": "9876543210", "soldAt": (datetime.now() - timedelta(days=2)).isoformat()
+    },
+    {
+        "id": "sale-2", "productId": "2", "productName": "NVIDIA RTX 4070 Ti Super", "category": "GPU",
+        "brand": "NVIDIA", "quantity": 2, "soldPrice": 64500, "purchasePrice": 52000,
+        "profit": 25000, "profitMargin": 24.0, "customerName": "Priya Patel",
+        "customerPhone": "9876543211", "soldAt": (datetime.now() - timedelta(days=1)).isoformat()
+    }
+]
+
+def sync_db_and_memory():
+    global INVENTORY_DATA, SALES_HISTORY
+    with app.app_context():
+        if InventoryItem.query.count() == 0:
+            for item in INVENTORY_DATA:
+                db.session.add(InventoryItem(**item))
+            db.session.commit()
+        else:
+            INVENTORY_DATA = [item.to_dict() for item in InventoryItem.query.all()]
+            
+        if SaleRecordModel.query.count() == 0:
+            for sale in SALES_HISTORY:
+                db.session.add(SaleRecordModel(**sale))
+            db.session.commit()
+        else:
+            SALES_HISTORY = [sale.to_dict() for sale in SaleRecordModel.query.all()]
+
+sync_db_and_memory()
 
 PRICE_HISTORY = {
     "1": [36000, 35500, 35200, 34800, 34999, 34500],  # AMD Ryzen 7 7800X3D
@@ -251,7 +434,80 @@ recommendation_engine = RecommendationEngine()
 
 @app.route('/api/health', methods=['GET'])
 def health_check():
+    logger.info("Health check endpoint called")
     return jsonify({"status": "healthy", "timestamp": datetime.now().isoformat()})
+
+# ============== AUTHENTICATION ENDPOINTS ==============
+
+@app.route('/api/auth/register', methods=['POST'])
+@limiter.limit("10 per hour")
+def register():
+    try:
+        data = request.get_json()
+        validated_data = RegisterSchema(**data)
+    except ValidationError as e:
+        logger.warning("Registration validation error")
+        return jsonify({"message": "Invalid data format", "errors": e.errors()}), 400
+        
+    if User.query.filter_by(email=validated_data.email).first():
+        logger.warning(f"Registration failed: Email {validated_data.email} already exists")
+        return jsonify({"message": "Email already registered"}), 409
+        
+    user = User(
+        name=validated_data.name,
+        email=validated_data.email,
+        role=validated_data.role,
+        store_name=validated_data.storeName
+    )
+    user.set_password(validated_data.password)
+    
+    db.session.add(user)
+    db.session.commit()
+    logger.info(f"New user registered: {user.email}")
+    
+    token = generate_token(user.id)
+    
+    response = make_response(jsonify({"message": "Registration successful", "user": user.to_dict()}))
+    response.set_cookie('auth_token', token, httponly=True, secure=False, samesite='Lax', max_age=86400)
+    return response, 201
+
+@app.route('/api/auth/login', methods=['POST'])
+@limiter.limit("20 per hour")
+def login():
+    try:
+        data = request.get_json()
+        validated_data = LoginSchema(**data)
+    except ValidationError as e:
+        logger.warning("Login validation error")
+        return jsonify({"message": "Invalid data format"}), 400
+        
+    user = User.query.filter_by(email=validated_data.email).first()
+    
+    if not user or not user.check_password(validated_data.password):
+        logger.warning(f"Failed login attempt for email: {validated_data.email if 'email' in validated_data.model_dump() else 'unknown'}")
+        return jsonify({"message": "Invalid credentials. Please try again."}), 401
+    
+    logger.info(f"User logged in: {user.email}")
+    token = generate_token(user.id)
+    
+    response = make_response(jsonify({"message": "Login successful", "user": user.to_dict()}))
+    response.set_cookie('auth_token', token, httponly=True, secure=False, samesite='Lax', max_age=86400)
+    return response, 200
+
+@app.route('/api/auth/me', methods=['GET'])
+def get_me():
+    user = get_current_user_from_cookie()
+    if not user:
+        return jsonify({"message": "Unauthorized"}), 401
+    return jsonify({"user": user.to_dict()}), 200
+
+@app.route('/api/auth/logout', methods=['POST'])
+def logout():
+    response = make_response(jsonify({"message": "Logged out successfully"}))
+    response.delete_cookie('auth_token')
+    return response, 200
+
+# ============== DASHBOARD ENDPOINTS ==============
 
 @app.route('/api/dashboard', methods=['GET'])
 def get_dashboard():
@@ -310,9 +566,69 @@ def get_inventory():
             "avgProfitMargin": round(np.mean([
                 (item["sellingPrice"] - item["purchasePrice"]) / item["purchasePrice"] * 100 
                 for item in INVENTORY_DATA
-            ]), 1)
+            ]) if INVENTORY_DATA else 0, 1)
         }
     })
+
+@app.route('/api/inventory', methods=['POST'])
+def add_inventory():
+    """Add new inventory item"""
+    data = request.get_json()
+    new_item = InventoryItem(
+        id=str(random.randint(1000, 9999)),
+        name=data.get('name'),
+        category=data.get('category'),
+        brand=data.get('brand', 'Generic'),
+        purchasePrice=float(data.get('purchasePrice')),
+        sellingPrice=float(data.get('sellingPrice')),
+        quantity=int(data.get('quantity')),
+        lastSoldDays=999,  # Never sold
+        demandScore=50,
+        totalSold=0
+    )
+    db.session.add(new_item)
+    db.session.commit()
+    
+    INVENTORY_DATA.append(new_item.to_dict())
+    return jsonify({"success": True, "item": new_item.to_dict()})
+
+@app.route('/api/inventory/<string:item_id>', methods=['PUT'])
+def update_inventory(item_id):
+    """Update existing inventory item"""
+    data = request.get_json()
+    item = InventoryItem.query.get(item_id)
+    if not item:
+        return jsonify({"error": "Not found"}), 404
+        
+    item.name = data.get('name', item.name)
+    item.category = data.get('category', item.category)
+    item.purchasePrice = float(data.get('purchasePrice', item.purchasePrice))
+    item.sellingPrice = float(data.get('sellingPrice', item.sellingPrice))
+    item.quantity = int(data.get('quantity', item.quantity))
+    
+    db.session.commit()
+    
+    # Update global memory
+    for i, mem_item in enumerate(INVENTORY_DATA):
+        if mem_item["id"] == item_id:
+            INVENTORY_DATA[i] = item.to_dict()
+            break
+            
+    return jsonify({"success": True, "item": item.to_dict()})
+
+@app.route('/api/inventory/<string:item_id>', methods=['DELETE'])
+def delete_inventory(item_id):
+    """Delete inventory item"""
+    global INVENTORY_DATA
+    item = InventoryItem.query.get(item_id)
+    if not item:
+        return jsonify({"error": "Not found"}), 404
+        
+    db.session.delete(item)
+    db.session.commit()
+    
+    INVENTORY_DATA = [i for i in INVENTORY_DATA if i["id"] != item_id]
+    return jsonify({"success": True})
 
 @app.route('/api/predictions/price/<product_id>', methods=['GET'])
 def get_price_prediction(product_id: str):
@@ -502,40 +818,6 @@ Be concise but thorough. Use ₹ for currency. Focus on practical recommendation
 """
     return context
 
-@app.route('/api/chat', methods=['POST'])
-def chat():
-    """AI Chat endpoint using Gemini"""
-    data = request.get_json()
-    user_message = data.get('message', '')
-    
-    if not user_message:
-        return jsonify({"error": "Message is required"}), 400
-    
-    if not GEMINI_AVAILABLE or not gemini_model:
-        # Fallback response when Gemini is not available
-        return jsonify({
-            "response": get_fallback_response(user_message),
-            "source": "fallback"
-        })
-    
-    try:
-        # Build context with inventory data
-        context = get_inventory_context()
-        full_prompt = f"{context}\n\nUser question: {user_message}"
-        
-        # Generate response
-        response = gemini_model.generate_content(full_prompt)
-        
-        return jsonify({
-            "response": response.text,
-            "source": "gemini"
-        })
-    except Exception as e:
-        return jsonify({
-            "response": get_fallback_response(user_message),
-            "source": "fallback",
-            "error": str(e)
-        })
 
 def get_fallback_response(message: str) -> str:
     """Smart fallback responses when Gemini is unavailable"""
@@ -927,14 +1209,27 @@ def record_sale():
         "soldAt": datetime.now().isoformat()
     }
     
-    # Update inventory
-    product["quantity"] -= quantity
-    product["totalSold"] = product.get("totalSold", 0) + quantity
-    product["lastSoldDays"] = 0  # Reset last sold days
+    # Add to DB and memory
+    db_sale = SaleRecordModel(**sale_record)
+    db.session.add(db_sale)
     
-    # Add to sales history
+    # Update inventory in DB
+    db_product = InventoryItem.query.get(product_id)
+    if db_product:
+        db_product.quantity -= quantity
+        db_product.totalSold += quantity
+        db_product.lastSoldDays = 0
+    
+    db.session.commit()
+    
     SALES_HISTORY.append(sale_record)
-    
+    for i, mem_item in enumerate(INVENTORY_DATA):
+        if mem_item["id"] == product_id:
+            mem_item["quantity"] -= quantity
+            mem_item["totalSold"] += quantity
+            mem_item["lastSoldDays"] = 0
+            break
+            
     return jsonify({
         "success": True,
         "message": f"Sale recorded successfully",
@@ -1051,6 +1346,136 @@ def suggest_sale_price(product_id):
         ],
         "recommendation": f"Based on {demand_score}% demand score and ₹{round(competitor_avg)} avg competitor price, sell at ₹{ai_suggested} for {ai_margin}% margin."
     })
+
+# ==================== BUILD GENERATOR ENDPOINT ====================
+
+@app.route('/api/generate-build', methods=['POST'])
+def generate_build():
+    """Generate PC build using AI or fallback logic"""
+    data = request.get_json()
+    purpose = data.get('purpose', 'Gaming')
+    budget = int(data.get('budget', 100000))
+    
+    if GEMINI_AVAILABLE and gemini_model:
+        try:
+            prompt = f"""
+            Act as an expert PC builder. Create a custom PC build for "{purpose}" with a maximum budget of ₹{budget}.
+            Return ONLY a valid JSON object with the following structure (no markdown formatting):
+            {{
+                "name": "Build Name",
+                "cpu": "CPU Name",
+                "gpu": "GPU Name",
+                "ram": "RAM Details",
+                "storage": "Storage Details",
+                "motherboard": "Motherboard Name",
+                "psu": "PSU Details",
+                "case": "Case Name",
+                "totalPrice": Estimated Total Price (number),
+                "description": "Brief explanation of why this build is good for the purpose"
+            }}
+            Ensure the total price is close to but not exceeding ₹{budget}. Use current Indian market prices.
+            """
+            
+            response = gemini_model.generate_content(prompt)
+            # Clean up response text if it contains markdown code blocks
+            text = response.text.replace('```json', '').replace('```', '').strip()
+            build_data = json.loads(text)
+            build_data['id'] = f"ai-build-{random.randint(1000, 9999)}"
+            build_data['source'] = 'AI'
+            return jsonify(build_data)
+            
+        except Exception as e:
+            print(f"AI Build Generation failed: {e}")
+            # Fall through to fallback
+            pass
+            
+    # Fallback Logic (Mock Generation)
+    # Scale components based on budget
+    budget_scale = budget / 100000
+    
+    if purpose == "Gaming":
+        cpu = "AMD Ryzen 5 7600X" if budget < 80000 else "AMD Ryzen 7 7800X3D" if budget < 200000 else "Intel Core i9-14900K"
+        gpu = "NVIDIA RTX 4060" if budget < 80000 else "NVIDIA RTX 4070 Ti Super" if budget < 150000 else "NVIDIA RTX 4090"
+    elif purpose == "Editing":
+        cpu = "Intel Core i5-13600K" if budget < 100000 else "Intel Core i7-14700K"
+        gpu = "NVIDIA RTX 3060 12GB" if budget < 100000 else "NVIDIA RTX 4070"
+    else:
+        cpu = "Intel Core i3-12100" if budget < 40000 else "Intel Core i5-12400"
+        gpu = "Integrated Graphics" if budget < 50000 else "NVIDIA GTX 1650"
+
+    return jsonify({
+        "id": f"fallback-build-{random.randint(1000, 9999)}",
+        "name": f"{purpose} Beast (Standard)",
+        "cpu": cpu,
+        "gpu": gpu,
+        "ram": "16GB DDR5 5200MHz" if budget > 60000 else "16GB DDR4 3200MHz",
+        "storage": "1TB NVMe SSD Gen4" if budget > 80000 else "500GB NVMe SSD",
+        "motherboard": "B650 WiFi" if "AMD" in cpu else "B760 WiFi",
+        "psu": "750W Gold Modular" if budget > 100000 else "650W Bronze",
+        "case": "Lian Li Lancool 216" if budget > 100000 else "Ant Esports ICE-511",
+        "totalPrice": int(budget * 0.95),
+        "description": "Optimized configuration based on your budget constrainst (Standard Recommendation).",
+        "source": "Rule-Based"
+    })
+
+
+# ==================== CHAT AI ENDPOINT ====================
+
+@app.route('/api/chat', methods=['POST'])
+def ai_chat():
+    """Live Gemini AI Chat connected to current memory inventory"""
+    data = request.get_json()
+    user_message = data.get('message', '')
+    
+    if not user_message:
+        return jsonify({"error": "No message provided"}), 400
+        
+    if not GEMINI_AVAILABLE or not gemini_model:
+        return jsonify({
+            "response": "⚠️ Sorry, my Gemini AI brain is disconnected! Please ensure `GEMINI_API_KEY` is properly configured in your backend `.env` file."
+        }), 200
+        
+    if GEMINI_API_KEY == 'AIzaSyCqgOnZ2Gr10rQefZl1Xsyvs3KSmlzsL_8':
+        return jsonify({
+            "response": "⚠️ **Configuration Needed!**\n\nThe current `GEMINI_API_KEY` in your `.env` is a dummy placeholder.\nPlease get a free Gemini API Key from [Google AI Studio](https://aistudio.google.com/app/apikey) and place it in `backend/.env`!"
+        }), 200
+
+    try:
+        # Build live context from database memory
+        total_items = len(INVENTORY_DATA)
+        total_stock = sum(item["quantity"] for item in INVENTORY_DATA)
+        total_value = sum(item["sellingPrice"] * item["quantity"] for item in INVENTORY_DATA)
+        
+        low_stock_items = [i["name"] for i in INVENTORY_DATA if i["quantity"] > 0 and i["quantity"] <= 5]
+        out_of_stock_items = [i["name"] for i in INVENTORY_DATA if i["quantity"] == 0]
+        dead_stock = [i["name"] for i in INVENTORY_DATA if i["lastSoldDays"] > 30]
+
+        context_prompt = f"""
+        You are a highly capable AI Inventory Advisor embedded directly into the "TechStock AI" application context. 
+        You analyze their LIVE internal hardware store data below:
+        - Total Products Tracked: {total_items}
+        - Total Stock Value (MRP): ₹{"{:,.0f}".format(total_value)} 
+        - Total Units on Hand: {total_stock}
+        - Out of Stock items: {', '.join(out_of_stock_items) if out_of_stock_items else 'None'}
+        - Low Stock items (≤5): {', '.join(low_stock_items) if low_stock_items else 'None'}
+        - Dead Stock (>30 days unsold): {', '.join(dead_stock) if dead_stock else 'None'}
+
+        Always respond concisely using markdown profiling (boldings/bullet points). 
+        You must specifically incorporate the LIVE store data statistics accurately above!
+        
+        The user asks: "{user_message}"
+        """
+        
+        response = gemini_model.generate_content(context_prompt)
+        text_response = response.text
+        
+        return jsonify({"response": text_response})
+
+    except Exception as e:
+        logger.error(f"Chat generation failure: {e}")
+        return jsonify({
+            "response": "⚠️ An internal error interrupted the AI generation pipeline. Please check backend logs."
+        }), 500
 
 if __name__ == '__main__':
     print("🚀 TechStock AI ML Backend starting...")

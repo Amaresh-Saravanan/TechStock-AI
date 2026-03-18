@@ -1,62 +1,98 @@
 import { useState, useRef, useEffect } from "react";
-import { Sparkles, Send, Lightbulb } from "lucide-react";
+import { Sparkles, Send, Lightbulb, Loader2 } from "lucide-react";
 import { marketInsights } from "@/lib/mock-data";
 import { Badge } from "@/components/ui/badge";
+
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 interface ChatMessage {
   role: "user" | "ai";
   content: string;
+  isLoading?: boolean;
 }
 
-const cannedResponses: Record<string, string> = {
-  profit:
-    "Based on your current inventory, the top profit opportunities are:\n\n1. **Logitech G Pro X Superlight** — 50.5% margin\n2. **Kingston Fury Beast DDR5** — 53.3% margin\n3. **Corsair Vengeance DDR5 32GB** — 44.9% margin\n\nConsider increasing stock of these high-margin items.",
-  gpu: "GPU market analysis: RTX 4090 prices are trending down (-8% in 30 days). RTX 5090 launch will accelerate this. Recommendation: Reduce RTX 40-series inventory, wait for RTX 50-series to establish pricing.",
-  stock:
-    "You have 2 items out of stock: AMD RX 7900 XTX and Razer Huntsman V3 Pro. The RX 7900 XTX has declining demand — consider dropping it. The Huntsman V3 Pro has strong demand — reorder immediately.",
-  default:
-    "I can help you with inventory analysis, pricing strategies, vendor recommendations, and profit optimization. Try asking about:\n• Top profit opportunities\n• GPU market trends\n• Stock alerts and reorder suggestions",
-};
+const QUICK_PROMPTS = [
+  "What should I restock?",
+  "Show me trending products",
+  "Any dead stock?",
+  "Profit recommendations",
+];
 
 export default function AIAdvisor() {
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       role: "ai",
       content:
-        "Hello! I'm your AI Profit Advisor. Ask me about inventory optimization, pricing strategies, or profit opportunities.",
+        "👋 Hello! I'm your AI Profit Advisor. Ask me about **inventory optimization**, **pricing strategies**, **restocking**, **profit opportunities**, or **market trends**.\n\nTry: 'What should I restock?' or 'Show trending products'",
     },
   ]);
   const [input, setInput] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const send = () => {
-    if (!input.trim()) return;
+  const send = async (messageText?: string) => {
+    const text = messageText || input.trim();
+    if (!text || isLoading) return;
 
-    const userMessage = input.trim().toLowerCase();
-    setMessages((prev) => [...prev, { role: "user", content: input.trim() }]);
+    const userMessage = text.trim();
+    setMessages((prev) => [...prev, { role: "user", content: userMessage }]);
     setInput("");
+    setIsLoading(true);
 
-    // Simulate AI response
-    setTimeout(() => {
-      let response = cannedResponses.default;
-      if (userMessage.includes("profit")) response = cannedResponses.profit;
-      else if (userMessage.includes("gpu") || userMessage.includes("graphics"))
-        response = cannedResponses.gpu;
-      else if (userMessage.includes("stock") || userMessage.includes("inventory"))
-        response = cannedResponses.stock;
+    // Add loading placeholder
+    const loadingId = Date.now();
+    setMessages((prev) => [...prev, { role: "ai", content: "", isLoading: true }]);
 
-      setMessages((prev) => [...prev, { role: "ai", content: response }]);
-    }, 800);
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
+
+      const response = await fetch(`${API_BASE_URL}/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: userMessage }),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      
+      setMessages((prev) => [
+        ...prev.filter(m => !(m.isLoading && m.role === "ai")),
+        { role: "ai", content: data.response, isLoading: false }
+      ]);
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : "Connection error";
+      setMessages((prev) => [
+        ...prev.filter(m => !(m.isLoading && m.role === "ai")),
+        { 
+          role: "ai", 
+          content: `⚠️ Couldn't connect to AI service. Make sure the backend is running:\n\n\`python app.py\` in the backend folder\n\nError: ${errorMsg}`,
+          isLoading: false 
+        }
+      ]);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const getScoreColor = (score: string) => {
     if (score === "High") return "text-success bg-success/10";
     if (score === "Medium") return "text-warning bg-warning/10";
     return "text-destructive bg-destructive/10";
+  };
+
+  const handleQuickPrompt = (prompt: string) => {
+    send(prompt);
   };
 
   return (
@@ -105,6 +141,7 @@ export default function AIAdvisor() {
             <h2 className="font-semibold text-foreground">AI Assistant</h2>
           </div>
 
+          {/* Messages */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
             {messages.map((msg, i) => (
               <div
@@ -112,32 +149,62 @@ export default function AIAdvisor() {
                 className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
               >
                 <div
-                  className={`max-w-[80%] px-4 py-2.5 rounded-2xl text-sm whitespace-pre-wrap ${
+                  className={`max-w-[80%] px-4 py-2.5 rounded-2xl text-sm whitespace-pre-wrap leading-relaxed ${
                     msg.role === "user"
                       ? "gradient-primary text-primary-foreground"
                       : "bg-muted text-foreground"
                   }`}
                 >
-                  {msg.content}
+                  {msg.isLoading ? (
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span>Thinking...</span>
+                    </div>
+                  ) : (
+                    msg.content
+                  )}
                 </div>
               </div>
             ))}
             <div ref={chatEndRef} />
           </div>
 
+          {/* Quick Prompts */}
+          {messages.length === 1 && (
+            <div className="px-4 pb-3 flex flex-wrap gap-2">
+              {QUICK_PROMPTS.map((prompt) => (
+                <button
+                  key={prompt}
+                  onClick={() => handleQuickPrompt(prompt)}
+                  disabled={isLoading}
+                  className="text-xs px-3 py-1.5 rounded-full border border-border bg-secondary hover:bg-secondary/80 text-foreground transition-colors disabled:opacity-50"
+                >
+                  {prompt}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Input */}
           <div className="p-4 border-t border-border flex gap-2">
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && send()}
-              placeholder="Ask about profits, pricing, or inventory..."
-              className="flex-1 h-10 px-4 rounded-lg bg-background border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+              onKeyDown={(e) => e.key === "Enter" && !isLoading && send()}
+              placeholder="Ask about profit, inventory, pricing..."
+              disabled={isLoading}
+              className="flex-1 h-10 px-4 rounded-lg bg-background border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-50"
             />
             <button
-              onClick={send}
-              className="w-10 h-10 rounded-lg gradient-primary flex items-center justify-center text-primary-foreground hover:opacity-90 transition-opacity"
+              onClick={() => send()}
+              disabled={isLoading || !input.trim()}
+              className="w-10 h-10 rounded-lg gradient-primary flex items-center justify-center text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <Send className="w-4 h-4" />
+              {isLoading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Send className="w-4 h-4" />
+              )}
             </button>
           </div>
         </div>

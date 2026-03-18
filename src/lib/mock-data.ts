@@ -139,46 +139,7 @@ export const profitByCategory = [
 
 // Stock-Smart additional data
 
-export interface Vendor {
-  id: string;
-  name: string;
-  rating: number;
-  location: string;
-  email: string;
-  phone: string;
-  specialties: string[];
-  status: 'Active' | 'Inactive' | 'Pending';
-}
 
-export const vendors: Vendor[] = [
-  { id: '1', name: 'TechDistro India', rating: 4.8, location: 'Mumbai, MH', email: 'contact@techdistro.in', phone: '+91 22 1234 5678', specialties: ['GPUs', 'CPUs', 'RAM'], status: 'Active' },
-  { id: '2', name: 'Savex Technologies', rating: 4.6, location: 'Delhi, DL', email: 'sales@savex.in', phone: '+91 11 2345 6789', specialties: ['Storage', 'Networking'], status: 'Active' },
-  { id: '3', name: 'Ingram Micro', rating: 4.9, location: 'Bangalore, KA', email: 'india@ingrammicro.com', phone: '+91 80 3456 7890', specialties: ['Enterprise', 'GPUs', 'Servers'], status: 'Active' },
-  { id: '4', name: 'Redington', rating: 4.5, location: 'Chennai, TN', email: 'sales@redington.in', phone: '+91 44 4567 8901', specialties: ['Components', 'Laptops'], status: 'Active' },
-  { id: '5', name: 'Aditya Infotech', rating: 4.3, location: 'Hyderabad, TS', email: 'info@adityainfo.com', phone: '+91 40 5678 9012', specialties: ['RAM', 'Storage', 'Peripherals'], status: 'Pending' },
-  { id: '6', name: 'CompuAge Infocom', rating: 4.1, location: 'Pune, MH', email: 'orders@compuage.com', phone: '+91 20 6789 0123', specialties: ['Budget Components'], status: 'Inactive' },
-];
-
-export interface MarketplaceItem {
-  id: string;
-  name: string;
-  category: string;
-  price: number;
-  originalPrice: number;
-  seller: string;
-  rating: number;
-  stock: number;
-  image?: string;
-}
-
-export const marketplaceItems: MarketplaceItem[] = [
-  { id: '1', name: 'NVIDIA RTX 4090 Founders Edition', category: 'GPU', price: 159999, originalPrice: 174999, seller: 'TechDistro', rating: 4.9, stock: 3 },
-  { id: '2', name: 'AMD Ryzen 9 7950X3D', category: 'CPU', price: 52999, originalPrice: 58999, seller: 'Savex', rating: 4.8, stock: 8 },
-  { id: '3', name: 'G.Skill Trident Z5 RGB 64GB DDR5', category: 'RAM', price: 21999, originalPrice: 24999, seller: 'Ingram', rating: 4.7, stock: 15 },
-  { id: '4', name: 'Samsung 990 Pro 4TB', category: 'SSD', price: 32999, originalPrice: 36999, seller: 'Redington', rating: 4.8, stock: 12 },
-  { id: '5', name: 'ASUS ROG Crosshair X670E Hero', category: 'Motherboard', price: 54999, originalPrice: 59999, seller: 'TechDistro', rating: 4.6, stock: 5 },
-  { id: '6', name: 'Corsair HX1500i', category: 'PSU', price: 28999, originalPrice: 31999, seller: 'Savex', rating: 4.9, stock: 7 },
-];
 
 export interface BuyTimingItem {
   id: string;

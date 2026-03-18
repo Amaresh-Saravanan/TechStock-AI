@@ -67,7 +67,7 @@ export default function AIChat() {
 
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout for AI
+      const timeoutId = setTimeout(() => controller.abort(), 25000); // 25s timeout for AI
 
       const response = await fetch(`${API_BASE_URL}/chat`, {
         method: 'POST',
@@ -95,7 +95,7 @@ export default function AIChat() {
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: "⚠️ I couldn't connect to the AI service. Make sure the backend is running with `python app.py` in the backend folder.",
+        content: "⚠️ Network Error: I couldn't connect to the backend server. Please make sure the app backend is running natively and not timing out.",
         timestamp: new Date(),
       };
       setMessages(prev => [...prev, errorMessage]);
