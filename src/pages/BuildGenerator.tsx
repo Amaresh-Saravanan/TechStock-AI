@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { motion } from "framer-motion";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
 
 // Extended interface for AI builds
 interface AIBuild extends PCBuild {
@@ -30,22 +30,26 @@ export default function BuildGenerator() {
 
     try {
       const b = parseInt(budget) || 100000;
-
-      const response = await fetch(`${API_BASE_URL}/generate-build`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ purpose, budget: b }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to generate build');
-      }
-
-      const data = await response.json();
-      setResults([data]); // wrap single result in array for now
-
+      // TODO: Replace with real AI call → POST /api/generate-build
+      await new Promise(resolve => setTimeout(resolve, 900));
+      
+      // Generate mock build based on purpose and budget
+      const build: AIBuild = {
+        id: Date.now().toString(),
+        name: `${purpose} Build — ₹${b.toLocaleString()}`,
+        purpose,
+        description: `Optimized ${purpose.toLowerCase()} PC for ₹${b.toLocaleString()} budget with best price-to-performance components.`,
+        cpu: b >= 60000 ? 'AMD Ryzen 7 7700X' : 'Intel Core i5-13400F',
+        gpu: purpose === 'Office' ? 'Intel UHD 730 (Integrated)' : b >= 80000 ? 'NVIDIA RTX 4060 Ti' : b >= 50000 ? 'NVIDIA RTX 4060' : 'AMD RX 7600',
+        ram: b >= 80000 ? 'Corsair Vengeance DDR5 32GB 5600MHz' : 'G.Skill Ripjaws DDR4 16GB 3200MHz',
+        storage: b >= 80000 ? 'Samsung 990 Pro 2TB NVMe' : 'WD Black SN770 1TB NVMe',
+        motherboard: b >= 80000 ? 'ASUS ROG Strix B650E-F ATX' : 'MSI MAG B550 TOMAHAWK ATX',
+        psu: b >= 80000 ? 'Corsair RM850x 850W Gold' : 'Seasonic Focus GX-650 650W Gold',
+        totalPrice: Math.round(b * 0.95),
+        source: 'AI',
+        case: 'NZXT H510 Mid-Tower',
+      };
+      setResults([build]);
     } catch (err) {
       console.error(err);
       setError("Failed to generate build. Please try again.");

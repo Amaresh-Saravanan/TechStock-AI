@@ -6,8 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Zap, Eye, EyeOff, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
-import { api } from "@/lib/api";
-import { AxiosError } from "axios";
+
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -22,6 +21,7 @@ export default function Login() {
   
   const from = location.state?.from?.pathname || "/dashboard";
 
+  // TODO: Backend call handled in AuthContext
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!email || !password) {
@@ -33,18 +33,9 @@ export default function Login() {
     setIsSubmitting(true);
 
     try {
-      // Simulate network request to mimic real-world interactions
-      await new Promise(resolve => setTimeout(resolve, 800));
-      
-      const mockUser = {
-        id: "mock_1",
-        name: email.split('@')[0], // Extract name gracefully
-        email: email,
-        role: "retailer",
-        storeName: "Local Store",
-      };
-      
-      login(mockUser);
+      // Simulate brief loading state
+      await new Promise(resolve => setTimeout(resolve, 600));
+      login(email, password);
       navigate(from, { replace: true });
     } catch (err) {
       setError("Invalid credentials. Please try again.");

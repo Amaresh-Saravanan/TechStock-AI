@@ -1,10 +1,6 @@
 import { alerts as mockAlerts } from "@/lib/mock-data";
 import { motion } from "framer-motion";
-import { AlertTriangle, TrendingDown, Package, Shield, Bell, RefreshCw } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
-import api, { queryKeys, Alert } from "@/services/api";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
+import { AlertTriangle, TrendingDown, Package, Shield, Bell } from "lucide-react";
 
 const iconMap: Record<string, any> = {
   price_drop: TrendingDown,
@@ -14,22 +10,11 @@ const iconMap: Record<string, any> = {
 };
 
 export default function Alerts() {
-  const { 
-    data: alertsData, 
-    isLoading, 
-    refetch 
-  } = useQuery({
-    queryKey: queryKeys.alerts,
-    queryFn: api.getAlerts,
-    refetchInterval: 30000,
-    retry: 0,
-    staleTime: 30000,
-  });
-
-  // Merge API alerts with mock alerts as fallback
-  const alerts: (Alert | any)[] = alertsData?.alerts || mockAlerts;
-  const unread = alertsData?.summary?.unread || alerts.filter((a: any) => !a.read).length;
-  const criticalCount = alertsData?.summary?.critical || 0;
+  // TODO: Replace with Neon DB API call → GET /api/alerts
+  const alerts = mockAlerts;
+  const unread = alerts.filter((a: any) => !a.read).length;
+  const criticalCount = 0;
+  const isLoading = false;
 
   return (
     <div className="space-y-6">
@@ -41,10 +26,6 @@ export default function Alerts() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isLoading}>
-            <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 shadow-glow">
             <Bell className="h-5 w-5 text-primary" />
           </div>
@@ -52,13 +33,7 @@ export default function Alerts() {
       </div>
 
       <div className="space-y-3">
-        {isLoading ? (
-          <>
-            <Skeleton className="h-20 rounded-xl" />
-            <Skeleton className="h-20 rounded-xl" />
-            <Skeleton className="h-20 rounded-xl" />
-          </>
-        ) : alerts.length === 0 ? (
+        {alerts.length === 0 ? (
           <div className="text-center py-12">
             <Bell className="h-12 w-12 text-muted-foreground mx-auto mb-3 opacity-50" />
             <p className="text-muted-foreground">No alerts at the moment</p>

@@ -11,7 +11,6 @@ import Dashboard from "./pages/Dashboard";
 import SalesDashboard from "./pages/SalesDashboard";
 import Inventory from "./pages/Inventory";
 import PriceTracker from "./pages/PriceTracker";
-import Predictions from "./pages/Predictions";
 import BuildGenerator from "./pages/BuildGenerator";
 import Analytics from "./pages/Analytics";
 import Alerts from "./pages/Alerts";
@@ -41,7 +40,6 @@ const App = () => (
                 <Route path="/sales" element={<SalesDashboard />} />
                 <Route path="/inventory" element={<Inventory />} />
                 <Route path="/price-tracker" element={<PriceTracker />} />
-                <Route path="/predictions" element={<Predictions />} />
                 <Route path="/build-generator" element={<BuildGenerator />} />
                 <Route path="/analytics" element={<Analytics />} />
                 <Route path="/alerts" element={<Alerts />} />

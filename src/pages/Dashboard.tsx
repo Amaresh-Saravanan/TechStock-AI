@@ -1,13 +1,18 @@
 import { useMemo } from "react";
-import { DollarSign, Package, AlertTriangle, TrendingUp, ArrowUpRight, ArrowDownRight, Sparkles, Loader2, RefreshCw, Clock, ShoppingCart, ArrowUpCircle, ArrowDownCircle } from "lucide-react";
+import { DollarSign, AlertTriangle, Sparkles, ArrowUpRight, ArrowDownRight, Clock, ShoppingCart, ArrowUpCircle, ArrowDownCircle, RefreshCw, TrendingUp, Plus } from "lucide-react";
 import StatCard from "@/components/dashboard/StatCard";
-import { salesData as mockSalesData, categoryDistribution as mockCategoryDistribution, inventoryItems as mockInventoryItems } from "@/lib/mock-data";
+import {
+  salesData as mockSalesData,
+  categoryDistribution as mockCategoryDistribution,
+  inventoryItems as mockInventoryItems,
+  recommendations as mockRecommendations,
+  alerts as mockAlerts,
+  mockSalesEntries as mockSalesData_detail,
+} from "@/lib/mock-data";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { motion } from "framer-motion";
-import { useQuery } from "@tanstack/react-query";
-import api, { queryKeys, DashboardResponse, AnalyticsResponse } from "@/services/api";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
+import { useNavigate } from "react-router-dom";
 
 // Helper functions for inventory calculations
 function isDeadStock(lastSoldDate: string | undefined | null): boolean {
@@ -35,55 +40,36 @@ const CHART_COLORS = [
 ];
 
 export default function Dashboard() {
-  // Fetch dashboard data
-  const { 
-    data: dashboardData, 
-    isLoading: dashboardLoading, 
-    error: dashboardError,
-    refetch: refetchDashboard 
-  } = useQuery<DashboardResponse>({
-    queryKey: queryKeys.dashboard,
-    queryFn: api.getDashboard,
-    refetchInterval: 30000,
-    retry: 0, // Don't retry - fail fast
-    staleTime: 30000, // Data stays fresh for 30s
-  });
+  const navigate = useNavigate();
 
-  // Fetch analytics data
-  const { 
-    data: analyticsData, 
-    isLoading: analyticsLoading,
-  } = useQuery<AnalyticsResponse>({
-    queryKey: queryKeys.analytics,
-    queryFn: api.getAnalytics,
-    refetchInterval: 60000,
-    retry: 0,
-    staleTime: 60000,
-  });
+  // TODO: Replace with Neon DB API call → GET /api/dashboard
+  const salesData = mockSalesData;
+  const categoryDistribution = mockCategoryDistribution;
+  const recommendations = mockRecommendations;
+  const alerts = mockAlerts;
+  const salesDataDetail = mockSalesData_detail;
 
-  // Use API data or fallback to mock
-  const stats = dashboardData?.stats;
-  const aiInsight = dashboardData?.aiInsight;
-  const recommendations = dashboardData?.recommendations || [];
-  const alerts = dashboardData?.alerts || [];
-  const salesData = analyticsData?.salesTrend || mockSalesData;
-  const categoryDistribution = analyticsData?.categoryDistribution?.map((cat, i) => ({
-    name: cat.name,
-    value: cat.value,
-    fill: CHART_COLORS[i % CHART_COLORS.length]
-  })) || mockCategoryDistribution;
+  // Hardcoded AI insight (TODO: replace with real API)
+  const aiInsight = {
+    product: "NVIDIA RTX 4070 Ti",
+    surgePct: 45,
+    insight: "Current valuation is 18% above acquisition cost. Inventory levels are reaching critical thresholds across major regional distributors.",
+    profitFormatted: "+₹12.5K",
+    demandLevel: "Peak",
+    supplyLevel: "Critical",
+  };
 
   // Calculate inventory metrics from mock data
   const inventoryMetrics = useMemo(() => {
     const items = mockInventoryItems;
-    
+
     const totalProfit = items.reduce((sum, item) => {
       const profit = (item.sellingPrice - item.purchasePrice) * item.quantity;
       return sum + profit;
     }, 0);
 
     const deadStockItems = items.filter(item => isDeadStock(item.lastSoldDate));
-    const lowStockItems = items.filter(item => item.quantity > 0 && item.quantity <= 10);
+    const lowStockItems = items.filter(item => item.quantity > 0 && item.quantity < 5);
     const outOfStockItems = items.filter(item => item.quantity === 0);
 
     // Stock More suggestions - high demand or fast selling items with low quantity
@@ -106,11 +92,29 @@ export default function Dashboard() {
       outOfStockCount: outOfStockItems.length,
       stockMoreItems,
       reduceStockItems,
+      lowStockItems,
     };
   }, []);
 
-  const isLoading = dashboardLoading || analyticsLoading;
-  const hasError = dashboardError;
+  // Calculate today's metrics
+  const todayMetrics = useMemo(() => {
+    const today = new Date().toISOString().split('T')[0];
+    const todaySales = salesDataDetail.filter(s => s.date.startsWith(today));
+    
+    const todayRevenue = todaySales.reduce((sum, s) => sum + s.totalAmount, 0);
+    const todayUnits = todaySales.reduce((sum, s) => sum + s.quantity, 0);
+    const totalInventoryValue = mockInventoryItems.reduce(
+      (sum, p) => sum + (p.sellingPrice * p.quantity),
+      0
+    );
+
+    return {
+      todayRevenue,
+      todayUnits,
+      totalInventoryValue,
+      recentSales: todaySales.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 5),
+    };
+  }, [salesDataDetail]);
 
   return (
     <div className="space-y-6">
@@ -118,140 +122,177 @@ export default function Dashboard() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground tracking-tight">Dashboard</h1>
-          <p className="text-sm text-muted-foreground">
-            {isLoading ? "Loading data..." : hasError ? "Using cached data" : "Real-time ML insights"}
-          </p>
+          <p className="text-sm text-muted-foreground">Mock data — ready for Neon DB integration</p>
         </div>
-        <Button 
-          variant="outline" 
-          size="sm" 
-          onClick={() => refetchDashboard()}
-          disabled={isLoading}
-        >
-          <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+        <Button variant="outline" size="sm" disabled>
+          <RefreshCw className="h-4 w-4 mr-2" />
           Refresh
         </Button>
       </div>
 
       {/* AI Insight Card */}
-      {dashboardLoading ? (
-        <Skeleton className="h-48 w-full rounded-2xl" />
-      ) : (
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="relative overflow-hidden rounded-2xl p-6 gradient-primary"
-        >
-          {/* Background decoration */}
-          <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2" />
-          <div className="absolute bottom-0 left-0 w-32 h-32 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2" />
-          
-          <div className="relative">
-            {/* Header */}
-            <div className="flex items-start gap-4 mb-5">
-              <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm">
-                <Sparkles className="h-7 w-7 text-primary-foreground" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="text-xl font-bold text-primary-foreground">AI Insight</h3>
-                  <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-white/20 text-primary-foreground rounded-full">
-                    ML Powered
-                  </span>
-                </div>
-              </div>
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="relative overflow-hidden rounded-2xl p-6 gradient-primary"
+      >
+        {/* Background decoration */}
+        <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2" />
+        <div className="absolute bottom-0 left-0 w-32 h-32 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2" />
+
+        <div className="relative">
+          {/* Header */}
+          <div className="flex items-start gap-4 mb-5">
+            <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm">
+              <Sparkles className="h-7 w-7 text-primary-foreground" />
             </div>
-
-            {/* Content Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Left - Recommended Asset */}
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-primary-foreground/70 mb-1">
-                  Recommended Asset
-                </p>
-                <h4 className="text-2xl font-bold text-primary-foreground mb-4">
-                  {aiInsight?.product || "NVIDIA RTX 4070 Ti"}
-                </h4>
-                <p className="text-sm text-primary-foreground/80 leading-relaxed">
-                  Market intelligence indicates a <span className="text-success font-semibold underline underline-offset-2">
-                    {aiInsight?.surgePct || 45}% surge
-                  </span> in demand. 
-                  {aiInsight?.insight || "Current valuation is 18% above acquisition cost. Inventory levels are reaching critical thresholds across major regional distributors."}
-                </p>
-              </div>
-
-              {/* Right - Stats */}
-              <div className="flex items-center justify-end gap-8">
-                <div className="text-center">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-primary-foreground/70 mb-1">Profit</p>
-                  <p className="text-2xl font-bold text-primary-foreground">
-                    {aiInsight?.profitFormatted || "+₹12.5K"}
-                  </p>
-                </div>
-                <div className="text-center">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-primary-foreground/70 mb-1">Demand</p>
-                  <p className="text-2xl font-bold text-cyan-400">
-                    {aiInsight?.demandLevel || "Peak"}
-                  </p>
-                </div>
-                <div className="text-center">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-primary-foreground/70 mb-1">Supply</p>
-                  <p className="text-2xl font-bold text-warning">
-                    {aiInsight?.supplyLevel || "Critical"}
-                  </p>
-                </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-xl font-bold text-primary-foreground">AI Insight</h3>
+                <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-white/20 text-primary-foreground rounded-full">
+                  ML Powered
+                </span>
               </div>
             </div>
           </div>
-        </motion.div>
-      )}
+
+          {/* Content Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Left - Recommended Asset */}
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-primary-foreground/70 mb-1">
+                Recommended Asset
+              </p>
+              <h4 className="text-2xl font-bold text-primary-foreground mb-4">
+                {aiInsight.product}
+              </h4>
+              <p className="text-sm text-primary-foreground/80 leading-relaxed">
+                Market intelligence indicates a <span className="text-success font-semibold underline underline-offset-2">
+                  {aiInsight.surgePct}% surge
+                </span> in demand.{" "}
+                {aiInsight.insight}
+              </p>
+            </div>
+
+            {/* Right - Stats */}
+            <div className="flex items-center justify-end gap-8">
+              <div className="text-center">
+                <p className="text-xs font-semibold uppercase tracking-wider text-primary-foreground/70 mb-1">Profit</p>
+                <p className="text-2xl font-bold text-primary-foreground">{aiInsight.profitFormatted}</p>
+              </div>
+              <div className="text-center">
+                <p className="text-xs font-semibold uppercase tracking-wider text-primary-foreground/70 mb-1">Demand</p>
+                <p className="text-2xl font-bold text-cyan-400">{aiInsight.demandLevel}</p>
+              </div>
+              <div className="text-center">
+                <p className="text-xs font-semibold uppercase tracking-wider text-primary-foreground/70 mb-1">Supply</p>
+                <p className="text-2xl font-bold text-warning">{aiInsight.supplyLevel}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </motion.div>
 
       {/* Stat Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {dashboardLoading ? (
-          <>
-            <Skeleton className="h-28 rounded-xl" />
-            <Skeleton className="h-28 rounded-xl" />
-            <Skeleton className="h-28 rounded-xl" />
-            <Skeleton className="h-28 rounded-xl" />
-          </>
-        ) : (
-          <>
-            <StatCard 
-              title="Total Profit" 
-              value={`₹${(inventoryMetrics.totalProfit / 1000).toFixed(1)}K`} 
-              change="From current inventory" 
-              changeType="up" 
-              icon={DollarSign} 
-            />
-            <StatCard 
-              title="Dead Stock" 
-              value={String(stats?.deadStockCount ?? inventoryMetrics.deadStockCount)} 
-              change={inventoryMetrics.deadStockCount > 0 ? "30+ days unsold" : "All stock moving"} 
-              changeType={inventoryMetrics.deadStockCount > 0 ? "down" : "up"} 
-              icon={Clock} 
-            />
-            <StatCard 
-              title="Low Stock" 
-              value={String(inventoryMetrics.lowStockCount)} 
-              change={inventoryMetrics.lowStockCount > 0 ? "Needs restocking" : "Stock levels healthy"} 
-              changeType={inventoryMetrics.lowStockCount > 3 ? "down" : "neutral"} 
-              icon={AlertTriangle} 
-            />
-            <StatCard 
-              title="Out of Stock" 
-              value={String(inventoryMetrics.outOfStockCount)} 
-              change={inventoryMetrics.outOfStockCount > 0 ? "Missing sales" : "All products available"} 
-              changeType={inventoryMetrics.outOfStockCount > 0 ? "down" : "up"} 
-              icon={ShoppingCart} 
-            />
-          </>
-        )}
+        <StatCard
+          title="Total Profit"
+          value={`₹${(inventoryMetrics.totalProfit / 1000).toFixed(1)}K`}
+          change="From current inventory"
+          changeType="up"
+          icon={DollarSign}
+        />
+        <StatCard
+          title="Dead Stock"
+          value={String(inventoryMetrics.deadStockCount)}
+          change={inventoryMetrics.deadStockCount > 0 ? "30+ days unsold" : "All stock moving"}
+          changeType={inventoryMetrics.deadStockCount > 0 ? "down" : "up"}
+          icon={Clock}
+        />
+        <StatCard
+          title="Low Stock"
+          value={String(inventoryMetrics.lowStockCount)}
+          change={inventoryMetrics.lowStockCount > 0 ? "Needs restocking" : "Stock levels healthy"}
+          changeType={inventoryMetrics.lowStockCount > 3 ? "down" : "neutral"}
+          icon={AlertTriangle}
+        />
+        <StatCard
+          title="Out of Stock"
+          value={String(inventoryMetrics.outOfStockCount)}
+          change={inventoryMetrics.outOfStockCount > 0 ? "Missing sales" : "All products available"}
+          changeType={inventoryMetrics.outOfStockCount > 0 ? "down" : "up"}
+          icon={ShoppingCart}
+        />
+      </div>
+
+      {/* Low Stock Alert Banner */}
+      {inventoryMetrics.lowStockCount > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: -12 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 flex items-center justify-between"
+        >
+          <span className="text-red-400 text-sm font-medium flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4" />
+            ⚠ {inventoryMetrics.lowStockCount} product{inventoryMetrics.lowStockCount > 1 ? 's' : ''} running low on stock
+          </span>
+          <Button variant="outline" size="sm" onClick={() => navigate('/inventory')}>
+            View Inventory →
+          </Button>
+        </motion.div>
+      )}
+
+      {/* Quick Actions */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <Button 
+          variant="outline" 
+          className="justify-start h-auto py-3"
+          onClick={() => navigate('/sales')}
+        >
+          <Plus className="h-4 w-4 mr-2" />
+          <div className="text-left">
+            <div className="text-sm font-medium">Record Sale</div>
+            <div className="text-xs text-muted-foreground">Log a new sale</div>
+          </div>
+        </Button>
+        <Button 
+          variant="outline" 
+          className="justify-start h-auto py-3"
+          onClick={() => navigate('/inventory')}
+        >
+          <Plus className="h-4 w-4 mr-2" />
+          <div className="text-left">
+            <div className="text-sm font-medium">Add Product</div>
+            <div className="text-xs text-muted-foreground">Add to inventory</div>
+          </div>
+        </Button>
+        <Button 
+          variant="outline" 
+          className="justify-start h-auto py-3"
+          onClick={() => navigate('/analytics')}
+        >
+          <TrendingUp className="h-4 w-4 mr-2" />
+          <div className="text-left">
+            <div className="text-sm font-medium">View Reports</div>
+            <div className="text-xs text-muted-foreground">Profit analytics</div>
+          </div>
+        </Button>
+        <Button 
+          variant="outline" 
+          className="justify-start h-auto py-3"
+          onClick={() => navigate('/ai-advisor')}
+        >
+          <Sparkles className="h-4 w-4 mr-2" />
+          <div className="text-left">
+            <div className="text-sm font-medium">AI Advisor</div>
+            <div className="text-xs text-muted-foreground">Smart insights</div>
+          </div>
+        </Button>
       </div>
 
       {/* Optimization Suggestions */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} 
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
           className="rounded-xl border border-border bg-card p-5">
           <div className="flex items-center gap-2 mb-3">
             <div className="p-1.5 rounded-md" style={{ backgroundColor: "rgba(34, 197, 94, 0.1)" }}>
@@ -279,7 +320,7 @@ export default function Dashboard() {
           </div>
         </motion.div>
 
-        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} 
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
           className="rounded-xl border border-border bg-card p-5">
           <div className="flex items-center gap-2 mb-3">
             <div className="p-1.5 rounded-md" style={{ backgroundColor: "rgba(239, 68, 68, 0.1)" }}>
@@ -317,7 +358,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         {/* Revenue Chart */}
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="col-span-2 rounded-xl border border-border bg-card p-5">
-          <h3 className="text-sm font-semibold text-card-foreground mb-4">Revenue & Profit Trend</h3>
+          <h3 className="text-sm font-semibold text-card-foreground mb-4">Revenue &amp; Profit Trend</h3>
           <ResponsiveContainer width="100%" height={260}>
             <AreaChart data={salesData}>
               <defs>
@@ -370,26 +411,21 @@ export default function Dashboard() {
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="rounded-xl border border-border bg-card p-5">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-semibold text-card-foreground">AI Recommendations</h3>
-            {isLoading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
           </div>
           <div className="space-y-2.5">
-            {recommendations.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">No recommendations at the moment</p>
-            ) : (
-              recommendations.slice(0, 4).map((rec, i) => (
-                <div key={rec.productId || i} className="flex items-start gap-3 rounded-lg bg-secondary/50 p-3">
-                  <div className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${
-                    rec.priority === 'high' ? 'bg-destructive/15 text-destructive' : rec.priority === 'medium' ? 'bg-warning/15 text-warning' : 'bg-primary/15 text-primary'
-                  }`}>
-                    {rec.priority === 'high' ? <ArrowUpRight className="h-3.5 w-3.5" /> : <ArrowDownRight className="h-3.5 w-3.5" />}
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold text-card-foreground">{rec.action}: {rec.product}</p>
-                    <p className="text-[11px] text-muted-foreground">{rec.reason}</p>
-                  </div>
+            {recommendations.slice(0, 4).map((rec, i) => (
+              <div key={i} className="flex items-start gap-3 rounded-lg bg-secondary/50 p-3">
+                <div className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${
+                  rec.priority === 'high' ? 'bg-destructive/15 text-destructive' : rec.priority === 'medium' ? 'bg-warning/15 text-warning' : 'bg-primary/15 text-primary'
+                }`}>
+                  {rec.priority === 'high' ? <ArrowUpRight className="h-3.5 w-3.5" /> : <ArrowDownRight className="h-3.5 w-3.5" />}
                 </div>
-              ))
-            )}
+                <div>
+                  <p className="text-xs font-semibold text-card-foreground">{rec.action}: {rec.product}</p>
+                  <p className="text-[11px] text-muted-foreground">{rec.reason}</p>
+                </div>
+              </div>
+            ))}
           </div>
         </motion.div>
 
@@ -397,29 +433,18 @@ export default function Dashboard() {
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="rounded-xl border border-border bg-card p-5">
           <h3 className="text-sm font-semibold text-card-foreground mb-3">Recent Alerts</h3>
           <div className="space-y-2.5">
-            {alerts.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">No alerts at the moment</p>
-            ) : (
-              alerts.slice(0, 4).map((alert) => {
-                const alertType = (alert as any).alertType || alert.type;
-                return (
-                  <div key={alert.id} className={`flex items-start gap-3 rounded-lg p-3 ${!alert.read ? 'bg-primary/5 border border-primary/10' : 'bg-secondary/50'}`}>
-                    <div className={`mt-0.5 h-2 w-2 shrink-0 rounded-full ${
-                      alertType === 'price_drop' ? 'bg-destructive' : alertType === 'dead_stock' ? 'bg-warning' : 'bg-primary'
-                    }`} />
-                    <div>
-                      <p className="text-xs font-semibold text-card-foreground">{alert.productName}</p>
-                      <p className="text-[11px] text-muted-foreground">{alert.message}</p>
-                      <p className="mt-0.5 text-[10px] text-muted-foreground">
-                        {typeof alert.createdAt === 'string' && alert.createdAt.includes('T') 
-                          ? new Date(alert.createdAt).toLocaleString() 
-                          : alert.createdAt}
-                      </p>
-                    </div>
-                  </div>
-                );
-              })
-            )}
+            {alerts.slice(0, 4).map((alert) => (
+              <div key={alert.id} className={`flex items-start gap-3 rounded-lg p-3 ${!alert.read ? 'bg-primary/5 border border-primary/10' : 'bg-secondary/50'}`}>
+                <div className={`mt-0.5 h-2 w-2 shrink-0 rounded-full ${
+                  alert.alertType === 'price_drop' ? 'bg-destructive' : alert.alertType === 'dead_stock' ? 'bg-warning' : 'bg-primary'
+                }`} />
+                <div>
+                  <p className="text-xs font-semibold text-card-foreground">{alert.productName}</p>
+                  <p className="text-[11px] text-muted-foreground">{alert.message}</p>
+                  <p className="mt-0.5 text-[10px] text-muted-foreground">{alert.createdAt}</p>
+                </div>
+              </div>
+            ))}
           </div>
         </motion.div>
       </div>

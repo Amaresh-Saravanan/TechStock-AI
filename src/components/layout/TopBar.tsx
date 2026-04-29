@@ -2,10 +2,11 @@ import { useState, useRef, useEffect } from "react";
 import { Bell, Search, User, Sun, Moon, Package, ArrowRight } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useTheme } from "@/contexts/ThemeContext";
-import { useQuery } from "@tanstack/react-query";
-import api, { queryKeys, InventoryResponse } from "@/services/api";
+import { inventoryItems } from "@/lib/mock-data";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
+
+// TODO: Replace with Neon DB API call → GET /api/inventory (for search)
 
 export default function TopBar() {
   const { theme, toggleTheme } = useTheme();
@@ -14,19 +15,14 @@ export default function TopBar() {
   const searchRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
-  const { data: inventoryData } = useQuery<InventoryResponse>({
-    queryKey: queryKeys.inventory,
-    queryFn: api.getInventory,
-    staleTime: 60000,
-  });
-
-  const products = inventoryData?.items || [];
+  // Use mock inventory items for search
+  const products = inventoryItems;
   
   const displayProducts = searchQuery.trim() 
     ? products.filter(product => {
         const lowerQuery = searchQuery.toLowerCase();
         return (
-          product.name.toLowerCase().includes(lowerQuery) ||
+          product.productName.toLowerCase().includes(lowerQuery) ||
           product.category.toLowerCase().includes(lowerQuery) ||
           product.brand.toLowerCase().includes(lowerQuery)
         );
@@ -81,7 +77,7 @@ export default function TopBar() {
                         onClick={() => {
                           setSearchQuery("");
                           setIsSearchOpen(false);
-                          navigate('/inventory'); // Redirect to inventory
+                          navigate('/inventory');
                         }}
                       >
                         <div className="flex items-center gap-3">
@@ -90,7 +86,7 @@ export default function TopBar() {
                           </div>
                           <div>
                             <p className="text-sm font-medium leading-none mb-1 group-hover:text-primary transition-colors">
-                              {product.name}
+                              {product.productName}
                             </p>
                             <p className="text-xs text-muted-foreground flex gap-2">
                               <span>{product.category}</span>

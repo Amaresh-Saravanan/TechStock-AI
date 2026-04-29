@@ -1,83 +1,41 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { api } from '@/lib/api';
-import { toast } from 'sonner';
+import React, { createContext, useContext, useState, ReactNode } from 'react';
 
 interface User {
   id: string;
   name: string;
   email: string;
-  role: string;
+  role?: string;
+  storeName?: string;
 }
 
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (userData: User) => void;
-  logout: () => Promise<void>;
+  login: (email: string, password: string, name?: string) => void;
+  register: (name: string, email: string, password: string) => void;
+  logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  // TODO: Replace with Neon DB API call — no localStorage, pure in-memory state
   const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isLoading] = useState<boolean>(false);
 
-  // Function to initialize authentication state
-  const checkAuth = async () => {
-    try {
-      // Temporarily bypass backend to use Local Storage
-      const storedUser = localStorage.getItem('techstock_user');
-      if (storedUser) {
-        setUser(JSON.parse(storedUser));
-      } else {
-        setUser(null);
-      }
-    } catch (error) {
-      setUser(null);
-    } finally {
-      setIsLoading(false);
-    }
+  const login = (email: string, _password: string, name?: string) => {
+    // TODO: Replace with Neon DB API call → POST /api/auth/login
+    setUser({ id: '1', name: name || email.split('@')[0], email });
   };
 
-  useEffect(() => {
-    checkAuth();
-  }, []); // Run only once on mount
-
-  useEffect(() => {
-    // Listen for global 401 unauthorized events emitted from the API interceptor
-    const handleUnauthorized = () => {
-      setUser((currentUser) => {
-        // Avoid spamming toasts or loops
-        if (currentUser) {
-          toast.error('Your session has expired. Please log in again.');
-        }
-        return null;
-      });
-    };
-
-    window.addEventListener('auth:unauthorized', handleUnauthorized);
-
-    return () => {
-      window.removeEventListener('auth:unauthorized', handleUnauthorized);
-    };
-  }, []);
-
-  const login = (userData: User) => {
-    localStorage.setItem('techstock_user', JSON.stringify(userData));
-    setUser(userData);
+  const register = (name: string, email: string, _password: string) => {
+    // TODO: Replace with Neon DB API call → POST /api/auth/register
+    setUser({ id: '1', name, email });
   };
 
-  const logout = async () => {
-    try {
-      // Remove from frontend cache completely
-      localStorage.removeItem('techstock_user');
-    } catch (error) {
-      console.error('Logout error', error);
-    } finally {
-      setUser(null);
-      toast.success('Logged out successfully');
-    }
+  const logout = () => {
+    setUser(null);
   };
 
   const value = {
@@ -85,7 +43,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isAuthenticated: !!user,
     isLoading,
     login,
-    logout
+    register,
+    logout,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,8 +8,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Loader2, Sparkles, TrendingUp, User, Phone, Package, IndianRupee, Minus, Plus, Check, AlertCircle } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
-import api, { queryKeys, InventoryItem, SalePriceSuggestionResponse, RecordSalePayload } from "@/services/api";
+import { InventoryItem } from "@/lib/mock-data";
 import { motion, AnimatePresence } from "framer-motion";
+
+// TODO: Replace with Neon DB API call → POST /api/sales/record
 
 interface SalesModalProps {
   open: boolean;
@@ -18,21 +19,36 @@ interface SalesModalProps {
   product: InventoryItem | null;
 }
 
+// Mock AI price suggestion
+function getMockPriceSuggestion(product: InventoryItem) {
+  const aiSuggestedPrice = Math.round(product.sellingPrice * 1.05);
+  const competitorAvg = Math.round(product.sellingPrice * 0.97);
+  const aiProfitMargin = Math.round(((aiSuggestedPrice - product.purchasePrice) / product.purchasePrice) * 100);
+  const marginOptions = [10, 15, 20, 25].map(margin => ({
+    margin,
+    price: Math.round(product.purchasePrice * (1 + margin / 100)),
+  }));
+  return {
+    aiSuggestedPrice,
+    competitorAvg,
+    aiProfitMargin,
+    demandScore: 72,
+    suggestionReason: "Based on current market trends and competitor pricing — slight premium justified by demand.",
+    marginOptions,
+  };
+}
+
 export function SalesModal({ open, onOpenChange, product }: SalesModalProps) {
-  const queryClient = useQueryClient();
   const [quantity, setQuantity] = useState(1);
   const [soldPrice, setSoldPrice] = useState(0);
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [useAiPrice, setUseAiPrice] = useState(true);
+  const [isPending, setIsPending] = useState(false);
 
-  // Fetch AI price suggestion
-  const { data: priceSuggestion, isLoading: loadingPrice } = useQuery({
-    queryKey: queryKeys.salePriceSuggestion(product?.id || ""),
-    queryFn: () => api.getSalePriceSuggestion(product!.id),
-    enabled: !!product && open,
-    staleTime: 30000,
-  });
+  // Mock AI price suggestion (no API)
+  const priceSuggestion = product ? getMockPriceSuggestion(product) : null;
+  const loadingPrice = false;
 
   // Reset form when product changes
   useEffect(() => {
@@ -43,31 +59,7 @@ export function SalesModal({ open, onOpenChange, product }: SalesModalProps) {
     } else if (product) {
       setSoldPrice(product.sellingPrice);
     }
-  }, [product, priceSuggestion]);
-
-  // Record sale mutation
-  const recordSaleMutation = useMutation({
-    mutationFn: (data: RecordSalePayload) => api.recordSale(data),
-    onSuccess: (response) => {
-      toast({
-        title: "Sale Recorded! 🎉",
-        description: `${product?.name} sold for ₹${soldPrice.toLocaleString()}. Profit: ₹${(soldPrice - (product?.purchasePrice || 0)).toLocaleString()}`,
-      });
-      // Invalidate queries to refresh data
-      queryClient.invalidateQueries({ queryKey: queryKeys.inventory });
-      queryClient.invalidateQueries({ queryKey: queryKeys.salesHistory });
-      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard });
-      onOpenChange(false);
-      resetForm();
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Error Recording Sale",
-        description: error.message || "Failed to record sale. Please try again.",
-        variant: "destructive",
-      });
-    },
-  });
+  }, [product]);
 
   const resetForm = () => {
     setQuantity(1);
@@ -77,7 +69,7 @@ export function SalesModal({ open, onOpenChange, product }: SalesModalProps) {
     setUseAiPrice(true);
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!product) return;
     
     if (!customerName.trim()) {
@@ -98,13 +90,25 @@ export function SalesModal({ open, onOpenChange, product }: SalesModalProps) {
       return;
     }
 
-    recordSaleMutation.mutate({
-      productId: product.id,
-      quantity,
-      soldPrice,
-      customerName: customerName.trim(),
-      customerPhone: customerPhone.trim(),
-    });
+    setIsPending(true);
+    try {
+      // TODO: Replace with Neon DB API call → POST /api/sales/record
+      await new Promise(resolve => setTimeout(resolve, 600));
+      toast({
+        title: "Sale Recorded! 🎉",
+        description: `${product.productName} sold for ₹${soldPrice.toLocaleString()}. Profit: ₹${(soldPrice - product.purchasePrice).toLocaleString()}`,
+      });
+      onOpenChange(false);
+      resetForm();
+    } catch (error) {
+      toast({
+        title: "Error Recording Sale",
+        description: "Failed to record sale. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsPending(false);
+    }
   };
 
   const profit = soldPrice - (product?.purchasePrice || 0);
@@ -124,7 +128,7 @@ export function SalesModal({ open, onOpenChange, product }: SalesModalProps) {
             Mark as Sold
           </DialogTitle>
           <DialogDescription>
-            Record a sale for {product.name}
+            Record a sale for {product.productName}
           </DialogDescription>
         </DialogHeader>
 
@@ -134,7 +138,7 @@ export function SalesModal({ open, onOpenChange, product }: SalesModalProps) {
             <CardContent className="p-4">
               <div className="flex justify-between items-start">
                 <div>
-                  <h4 className="font-semibold">{product.name}</h4>
+                  <h4 className="font-semibold">{product.productName}</h4>
                   <p className="text-sm text-muted-foreground">{product.brand} • {product.category}</p>
                 </div>
                 <Badge variant="outline" className="ml-2">
@@ -343,9 +347,9 @@ export function SalesModal({ open, onOpenChange, product }: SalesModalProps) {
             className="w-full" 
             size="lg"
             onClick={handleSubmit}
-            disabled={recordSaleMutation.isPending || !customerName.trim()}
+            disabled={isPending || !customerName.trim()}
           >
-            {recordSaleMutation.isPending ? (
+            {isPending ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 Recording Sale...

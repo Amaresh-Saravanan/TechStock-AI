@@ -7,8 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Zap, Eye, EyeOff, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
-import { api } from "@/lib/api";
-import { AxiosError } from "axios";
+
 
 export default function Register() {
   const [name, setName] = useState("");
@@ -23,10 +22,11 @@ export default function Register() {
   
   const navigate = useNavigate();
   const location = useLocation();
-  const { login } = useAuth();
+  const { login, register } = useAuth();
   
   const from = location.state?.from?.pathname || "/dashboard";
 
+  // TODO: Backend call handled in AuthContext
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!name || !email || !password || !storeName || !role) {
@@ -38,18 +38,9 @@ export default function Register() {
     setIsSubmitting(true);
 
     try {
-      // Simulate network request
-      await new Promise(resolve => setTimeout(resolve, 800));
-      
-      const mockUser = {
-        id: Date.now().toString(),
-        name,
-        email,
-        role,
-        storeName,
-      };
-
-      login(mockUser);
+      // Simulate brief loading state
+      await new Promise(resolve => setTimeout(resolve, 600));
+      register(name, email, password);
       navigate(from, { replace: true });
     } catch (err) {
       setError("Registration failed. Please try again.");

@@ -3,13 +3,49 @@ import { competitorPrices as mockCompetitorPrices, priceHistoryData as mockPrice
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Area, ComposedChart } from "recharts";
 import { motion } from "framer-motion";
 import { ArrowDown, ArrowUp, Minus, TrendingUp, TrendingDown, Sparkles, RefreshCw, Search, ChevronRight, DollarSign, Package, Target, AlertTriangle } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
-import api, { queryKeys, PriceTrackingItem, PriceHistoryEntry, PriceSuggestionsResponse } from "@/services/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { CategoryDropdown } from "@/components/ui/CategoryDropdown";
+import { CATEGORY_GROUPS } from "@/lib/mock-data";
+
+// Types now defined locally since services/api is removed
+interface PriceTrackingItem {
+  id: string;
+  productName: string;
+  category: string;
+  purchasePrice: number;
+  yourPrice: number;
+  competitorAvg: number;
+  amazon: number;
+  flipkart: number;
+  mdcomputers: number;
+  primeabgb: number;
+  recommendedPrice: number;
+  profitMargin: number;
+  priceStatus: 'Higher' | 'Lower' | 'Optimal';
+  priceStatusColor: 'red' | 'yellow' | 'green';
+  quantity: number;
+  lastSoldDays: number;
+  demandScore: number;
+}
+
+interface PriceHistoryEntry {
+  date: string;
+  yourPrice: number;
+  competitorAvg: number;
+  amazon: number;
+  flipkart: number;
+  mdcomputers: number;
+}
+
+interface PriceSuggestionsResponse {
+  bestToSell: any;
+  bestToStock: any;
+  suggestions: any[];
+  aiInsight: { title: string; message: string; recommendation: string };
+  generatedAt: string;
+}
 
 // Generate mock price tracking data from inventory
 function generateMockPriceTracking(): PriceTrackingItem[] {
@@ -159,86 +195,40 @@ export default function PriceTracker() {
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
 
-  // Fetch price tracking data
-  const { data: priceTrackingData, isLoading: trackingLoading, refetch } = useQuery({
-    queryKey: queryKeys.priceTracking,
-    queryFn: api.getPriceTracking,
-    retry: 0,
-    staleTime: 60000,
-  });
+  // TODO: Replace with Neon DB API call → GET /api/price-tracking
+  const products = generateMockPriceTracking();
+  const suggestions = generateMockSuggestions();
+  const priceHistory = selectedProduct ? generateMockPriceHistory(selectedProduct) : [];
+  const trackingLoading = false;
 
-  // Fetch price suggestions
-  const { data: suggestionsData, isLoading: suggestionsLoading } = useQuery({
-    queryKey: queryKeys.priceSuggestions,
-    queryFn: api.getPriceSuggestions,
-    retry: 0,
-    staleTime: 60000,
-  });
-
-  // Fetch price history for selected product
-  const { data: priceHistoryData, isLoading: historyLoading } = useQuery({
-    queryKey: queryKeys.priceHistory(selectedProduct || ''),
-    queryFn: () => api.getPriceHistory(selectedProduct || ''),
-    enabled: !!selectedProduct,
-    retry: 0,
-    staleTime: 30000,
-  });
-
-  // Fetch price prediction for selected product
-  const { data: predictionData, isLoading: predictionLoading } = useQuery({
-    queryKey: queryKeys.pricePredictionDetailed(selectedProduct || ''),
-    queryFn: () => api.getPricePredictionDetailed(selectedProduct || ''),
-    enabled: !!selectedProduct,
-    retry: 0,
-    staleTime: 30000,
-  });
-
-  // Use mock data as fallback
-  const products = priceTrackingData?.products || generateMockPriceTracking();
-  const suggestions = suggestionsData || generateMockSuggestions();
-  const priceHistory = priceHistoryData?.history || (selectedProduct ? generateMockPriceHistory(selectedProduct) : []);
-
-  // Filter products
+  // Filter products — supports "all", group name, or single category
   const filteredProducts = useMemo(() => {
     return products.filter(product => {
       const matchesSearch = product.productName.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesCategory = categoryFilter === "all" || product.category === categoryFilter;
+      let matchesCategory: boolean;
+      if (categoryFilter === "all") {
+        matchesCategory = true;
+      } else {
+        const selectedGroup = CATEGORY_GROUPS.find(g => g.group === categoryFilter);
+        if (selectedGroup) {
+          matchesCategory = selectedGroup.categories.includes(product.category);
+        } else {
+          matchesCategory = product.category === categoryFilter;
+        }
+      }
       return matchesSearch && matchesCategory;
     });
   }, [products, searchQuery, categoryFilter]);
 
-  // Get unique categories
-  const categories = useMemo(() => {
-    return [...new Set(products.map(p => p.category))];
-  }, [products]);
 
-  // Chart data with predictions
+  // Chart data from mock price history
   const chartData = useMemo(() => {
     if (!priceHistory.length) return [];
-    
-    // Add prediction data
-    const baseData = priceHistory.map(h => ({
+    return priceHistory.map(h => ({
       ...h,
       date: new Date(h.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
     }));
-
-    // Add predicted future dates
-    if (predictionData?.predictions) {
-      const lastDate = new Date(priceHistory[priceHistory.length - 1]?.date || new Date());
-      predictionData.predictions.forEach((pred, idx) => {
-        const futureDate = new Date(lastDate);
-        futureDate.setDate(futureDate.getDate() + pred.days);
-        baseData.push({
-          date: futureDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-          yourPrice: idx === 0 ? baseData[baseData.length - 1]?.yourPrice : undefined as any,
-          competitorAvg: undefined as any,
-          predicted: pred.predictedPrice,
-        } as any);
-      });
-    }
-
-    return baseData;
-  }, [priceHistory, predictionData]);
+  }, [priceHistory]);
 
   const selectedProductData = selectedProduct ? products.find(p => p.id === selectedProduct) : null;
 
@@ -252,8 +242,8 @@ export default function PriceTracker() {
             Monitor competitor prices, track trends, and get AI-powered pricing recommendations
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => refetch()} disabled={trackingLoading}>
-          <RefreshCw className={`h-4 w-4 mr-2 ${trackingLoading ? 'animate-spin' : ''}`} />
+        <Button variant="outline" size="sm" disabled>
+          <RefreshCw className="h-4 w-4 mr-2" />
           Refresh
         </Button>
       </div>
@@ -403,17 +393,12 @@ export default function PriceTracker() {
             className="pl-10 bg-secondary border-none" 
           />
         </div>
-        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-          <SelectTrigger className="w-40 bg-secondary border-none">
-            <SelectValue placeholder="Category" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Categories</SelectItem>
-            {categories.map(cat => (
-              <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <CategoryDropdown
+          value={categoryFilter}
+          onChange={setCategoryFilter}
+          triggerClassName="w-52"
+          contentClassName="w-[240px]"
+        />
       </div>
 
       {/* Main Content Grid */}
@@ -421,7 +406,7 @@ export default function PriceTracker() {
         {/* Price Tracking Table */}
         <div className="lg:col-span-2">
           {trackingLoading ? (
-            <Skeleton className="h-[500px] rounded-xl" />
+            <div className="h-[500px] rounded-xl bg-secondary/30 animate-pulse" />
           ) : (
             <motion.div 
               initial={{ opacity: 0, y: 12 }} 
@@ -429,8 +414,13 @@ export default function PriceTracker() {
               className="rounded-xl border border-border bg-card overflow-hidden"
             >
               <div className="p-5 pb-3 border-b border-border">
-                <h3 className="text-sm font-semibold text-card-foreground">All Products - Price Comparison</h3>
-                <p className="text-xs text-muted-foreground mt-1">Click on a product to view detailed price history</p>
+                <h3 className="text-sm font-semibold text-card-foreground">
+                  {categoryFilter === "all" ? "All Products" : categoryFilter} — Price Comparison
+                </h3>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Showing {filteredProducts.length} product{filteredProducts.length !== 1 ? "s" : ""}
+                  {categoryFilter !== "all" ? ` in ${categoryFilter}` : ""} · Click a row to view price history
+                </p>
               </div>
               <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
                 <table className="w-full text-sm">
@@ -552,54 +542,7 @@ export default function PriceTracker() {
                 </div>
               </motion.div>
 
-              {/* Prediction Card */}
-              {predictionData && (
-                <motion.div 
-                  initial={{ opacity: 0, x: 20 }} 
-                  animate={{ opacity: 1, x: 0 }} 
-                  transition={{ delay: 0.1 }}
-                  className="rounded-xl border border-border bg-card p-5"
-                >
-                  <h3 className="text-sm font-semibold text-card-foreground mb-3 flex items-center gap-2">
-                    <Target className="h-4 w-4" />
-                    Price Prediction
-                  </h3>
-                  
-                  <div className="flex items-center gap-3 mb-4">
-                    <div 
-                      className="p-2 rounded-lg"
-                      style={{ 
-                        backgroundColor: predictionData.trend === 'UP' ? "rgba(34, 197, 94, 0.1)" : predictionData.trend === 'DOWN' ? "rgba(239, 68, 68, 0.1)" : "rgba(99, 102, 241, 0.1)"
-                      }}
-                    >
-                      {predictionData.trend === 'UP' ? (
-                        <TrendingUp className="h-5 w-5" style={{ color: "#22C55E" }} />
-                      ) : predictionData.trend === 'DOWN' ? (
-                        <TrendingDown className="h-5 w-5" style={{ color: "#EF4444" }} />
-                      ) : (
-                        <Minus className="h-5 w-5" style={{ color: "#6366F1" }} />
-                      )}
-                    </div>
-                    <div>
-                      <p className="text-lg font-bold text-foreground">
-                        ₹{predictionData.predictedPrice.toLocaleString()}
-                      </p>
-                      <p 
-                        className="text-xs font-medium"
-                        style={{ 
-                          color: predictionData.predictedChangePercent > 0 ? "#22C55E" : predictionData.predictedChangePercent < 0 ? "#EF4444" : "#6366F1"
-                        }}
-                      >
-                        {predictionData.predictedChangePercent > 0 ? '+' : ''}{predictionData.predictedChangePercent}% predicted
-                      </p>
-                    </div>
-                  </div>
 
-                  <div className="text-xs text-muted-foreground">
-                    Confidence: {predictionData.confidence}%
-                  </div>
-                </motion.div>
-              )}
             </>
           ) : (
             <div className="rounded-xl border border-border bg-card p-8 text-center">

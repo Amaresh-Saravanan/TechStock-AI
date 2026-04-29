@@ -1,71 +1,51 @@
-import { useState, useEffect, useMemo } from "react";
-import { inventoryItems as mockInventoryItems, InventoryItem } from "@/lib/mock-data";
-import { Plus, Search, Edit, Trash2, Filter, RefreshCw, TrendingUp, TrendingDown, AlertTriangle, Package, ArrowUpCircle, ArrowDownCircle, Sparkles, Clock, DollarSign, ShoppingCart } from "lucide-react";
+import { useState, useMemo, type ReactNode } from "react";
+import { inventoryItems as mockInventoryItems, InventoryItem, CATEGORY_GROUPS, findGroupForCategory } from "@/lib/mock-data";
+import { Plus, Search, Edit, Trash2, Filter, RefreshCw, TrendingUp, TrendingDown, AlertTriangle, Package, ArrowUpCircle, ArrowDownCircle, Sparkles, Clock, DollarSign, ShoppingCart, Cpu, Monitor, Wifi, HardDrive, Laptop, Zap, ChevronRight, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from "@/components/ui/select";
+import { CategoryDropdown } from "@/components/ui/CategoryDropdown";
 import { motion } from "framer-motion";
-import { useQuery } from "@tanstack/react-query";
-import api, { queryKeys, InventoryResponse, InventoryItem as APIInventoryItem } from "@/services/api";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { SalesModal } from "@/components/sales/SalesModal";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
+import { toast } from "sonner";
+import { exportToCSV } from "@/lib/utils";
 
-// Transform API inventory to local format
-function transformAPIItem(item: APIInventoryItem): InventoryItem & { demand?: any; status?: string } {
-  return {
-    id: item.id,
-    productName: item.name,
-    category: item.category as any, // Cast to any to avoid strict union type mismatch
-    brand: item.brand,
-    model: "", // Add missing field if needed or keep existing logic
-    purchasePrice: item.purchasePrice,
-    sellingPrice: item.sellingPrice,
-    quantity: item.quantity,
-    distributor: "Distributor",
-    purchaseDate: "", // Missing from API
-    lastSoldDate: null,
-    generation: "", // Missing from API
-    demand: item.demand,
-    status: item.status,
-  };
+// ─── Group Icon Map ──────────────────────────────────────────────────────────
+
+const GROUP_ICONS: Record<string, ReactNode> = {
+  "Core Components":           <Cpu      className="h-5 w-5 text-primary" />,
+  "Display & Peripherals":     <Monitor  className="h-5 w-5 text-primary" />,
+  "Connectivity & Networking": <Wifi     className="h-5 w-5 text-primary" />,
+  "Storage & Ports":           <HardDrive className="h-5 w-5 text-primary" />,
+  "Laptops & Prebuilts":       <Laptop   className="h-5 w-5 text-primary" />,
+  "Power & Protection":        <Zap      className="h-5 w-5 text-primary" />,
+  "Accessories":               <Package  className="h-5 w-5 text-primary" />,
+};
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function getQuantityStatus(quantity: number) {
+  if (quantity === 0) return { status: "Out of Stock", color: "#EF4444", bgColor: "rgba(239, 68, 68, 0.1)" };
+  if (quantity <= 10) return { status: "Low Stock", color: "#F59E0B", bgColor: "rgba(245, 158, 11, 0.1)" };
+  return { status: "In Stock", color: "#22C55E", bgColor: "rgba(34, 197, 94, 0.1)" };
 }
 
-// Get quantity status with color
-function getQuantityStatus(quantity: number): { status: string; color: string; bgColor: string } {
-  if (quantity === 0) {
-    return { status: "Out of Stock", color: "#EF4444", bgColor: "rgba(239, 68, 68, 0.1)" };
-  } else if (quantity <= 10) {
-    return { status: "Low Stock", color: "#F59E0B", bgColor: "rgba(245, 158, 11, 0.1)" };
-  } else {
-    return { status: "In Stock", color: "#22C55E", bgColor: "rgba(34, 197, 94, 0.1)" };
-  }
+function getProfitMarginColor(profit: number) {
+  if (profit > 2000) return { color: "#22C55E", bgColor: "rgba(34, 197, 94, 0.1)" };
+  if (profit >= 500) return { color: "#F59E0B", bgColor: "rgba(245, 158, 11, 0.1)" };
+  return { color: "#EF4444", bgColor: "rgba(239, 68, 68, 0.1)" };
 }
 
-// Get profit margin color
-function getProfitMarginColor(profit: number): { color: string; bgColor: string } {
-  if (profit > 2000) {
-    return { color: "#22C55E", bgColor: "rgba(34, 197, 94, 0.1)" };
-  } else if (profit >= 500) {
-    return { color: "#F59E0B", bgColor: "rgba(245, 158, 11, 0.1)" };
-  } else {
-    return { color: "#EF4444", bgColor: "rgba(239, 68, 68, 0.1)" };
-  }
-}
-
-// Check if item is dead stock (not sold in 30+ days)
 function isDeadStock(lastSoldDate: string | undefined | null): boolean {
   if (!lastSoldDate) return true;
-  const lastSold = new Date(lastSoldDate);
-  const now = new Date();
-  const daysSinceLastSold = Math.floor((now.getTime() - lastSold.getTime()) / (1000 * 60 * 60 * 24));
-  return daysSinceLastSold >= 30;
+  return getDaysSinceLastSold(lastSoldDate) >= 30;
 }
 
-// Get days since last sold
 function getDaysSinceLastSold(lastSoldDate: string | undefined | null): number {
   if (!lastSoldDate) return 999;
   const lastSold = new Date(lastSoldDate);
@@ -73,18 +53,11 @@ function getDaysSinceLastSold(lastSoldDate: string | undefined | null): number {
   return Math.floor((now.getTime() - lastSold.getTime()) / (1000 * 60 * 60 * 24));
 }
 
+
+// ─── Main Component ──────────────────────────────────────────────────────────
+
 export default function Inventory() {
-  const {
-    data: inventoryData,
-    isLoading,
-    refetch
-  } = useQuery<InventoryResponse>({
-    queryKey: queryKeys.inventory,
-    queryFn: api.getInventory,
-    refetchInterval: 60000,
-    retry: 0,
-    staleTime: 60000,
-  });
+  const isLoading = false;
 
   const [items, setItems] = useState<(InventoryItem & { demand?: any; status?: string })[]>(mockInventoryItems);
   const [search, setSearch] = useState("");
@@ -110,25 +83,20 @@ export default function Inventory() {
     setNewQuantity("");
   };
 
-  // Update items when API data arrives
-  useEffect(() => {
-    if (inventoryData?.items) {
-      setItems(inventoryData.items.map(transformAPIItem));
-    }
-  }, [inventoryData]);
+  // Open add-product modal pre-filling category
+  const openAddProductModal = (category: string) => {
+    setNewCategory(category);
+    setDialogOpen(true);
+  };
 
-  // Computed metrics
+  // ── Metrics ──
   const metrics = useMemo(() => {
     const totalProfit = items.reduce((sum, item) => {
-      const profit = (item.sellingPrice - item.purchasePrice) * item.quantity;
-      return sum + profit;
+      return sum + (item.sellingPrice - item.purchasePrice) * item.quantity;
     }, 0);
-
     const deadStockItems = items.filter(item => isDeadStock(item.lastSoldDate));
     const lowStockItems = items.filter(item => item.quantity > 0 && item.quantity <= 10);
     const outOfStockItems = items.filter(item => item.quantity === 0);
-
-    // Stock More suggestions - high demand or low quantity items that sell well
     const stockMoreItems = items
       .filter(item => {
         const demand = item.demand?.level || 'Medium';
@@ -137,59 +105,241 @@ export default function Inventory() {
           (profit > 2000 && item.quantity <= 10 && !isDeadStock(item.lastSoldDate));
       })
       .slice(0, 4);
-
-    // Reduce Stock suggestions - dead stock or overstock items
     const reduceStockItems = items
       .filter(item => isDeadStock(item.lastSoldDate) || item.quantity > 20)
       .slice(0, 4);
-
-    return {
-      totalProfit,
-      deadStockCount: deadStockItems.length,
-      lowStockCount: lowStockItems.length,
-      outOfStockCount: outOfStockItems.length,
-      deadStockItems,
-      stockMoreItems,
-      reduceStockItems,
-    };
+    return { totalProfit, deadStockCount: deadStockItems.length, lowStockCount: lowStockItems.length, outOfStockCount: outOfStockItems.length, deadStockItems, stockMoreItems, reduceStockItems };
   }, [items]);
 
-  const filtered = items.filter((item) => {
-    const matchSearch = item.productName.toLowerCase().includes(search.toLowerCase());
-    const matchCategory = categoryFilter === "all" || item.category === categoryFilter;
-    return matchSearch && matchCategory;
-  });
+  // ── Filtering ──
+  const searchFiltered = useMemo(() => {
+    return items.filter(item => {
+      const matchSearch = item.productName.toLowerCase().includes(search.toLowerCase());
+      let matchCategory: boolean;
+      if (categoryFilter === "all") {
+        matchCategory = true;
+      } else {
+        // Check if a full group name is selected
+        const selectedGroup = CATEGORY_GROUPS.find(g => g.group === categoryFilter);
+        if (selectedGroup) {
+          matchCategory = selectedGroup.categories.includes(item.category);
+        } else {
+          // Single category selected
+          matchCategory = item.category === categoryFilter;
+        }
+      }
+      return matchSearch && matchCategory;
+    });
+  }, [items, search, categoryFilter]);
 
-  const handleDelete = async (id: string) => {
-    try {
-      await api.deleteInventoryItem(id);
-      refetch();
-    } catch (error) {
-      console.error("Failed to delete item", error);
-    }
+  const handleDelete = (id: string) => {
+    setItems(prev => prev.filter(item => item.id !== id));
   };
 
-  const handleAddProduct = async () => {
+  const handleAddProduct = () => {
     if (!newName || !newPurchasePrice || !newSellingPrice || !newQuantity) return;
-    
-    try {
-      await api.addInventoryItem({
-        name: newName,
-        category: newCategory,
-        brand: newBrand || "Generic",
-        purchasePrice: Number(newPurchasePrice),
-        sellingPrice: Number(newSellingPrice),
-        quantity: Number(newQuantity)
-      });
-      setDialogOpen(false);
-      resetForm();
-      refetch();
-    } catch (error) {
-      console.error("Failed to add item", error);
-    }
+    const newItem: InventoryItem & { demand?: any; status?: string } = {
+      id: Date.now().toString(),
+      productName: newName,
+      category: newCategory,
+      brand: newBrand || 'Generic',
+      model: '',
+      purchasePrice: Number(newPurchasePrice),
+      sellingPrice: Number(newSellingPrice),
+      quantity: Number(newQuantity),
+      distributor: 'Unknown',
+      purchaseDate: new Date().toISOString().split('T')[0],
+      lastSoldDate: null,
+      generation: '',
+    };
+    setItems(prev => [newItem, ...prev]);
+    setDialogOpen(false);
+    resetForm();
   };
-  const totalValue = inventoryData?.summary?.totalValue || items.reduce((s, i) => s + i.sellingPrice * i.quantity, 0);
-  const avgMargin = inventoryData?.summary?.avgProfitMargin || 18.5;
+
+  // ── Export inventory to CSV ────────────────────────────────────────────────
+  const handleExportCSV = () => {
+    if (searchFiltered.length === 0) {
+      toast.error("No items to export");
+      return;
+    }
+    // TODO: Replace with Neon DB API call → GET /api/products/export
+    const csvData = searchFiltered.map((item) => ({
+      'Product Name': item.productName,
+      Category: item.category,
+      Brand: item.brand,
+      'Purchase Price': item.purchasePrice,
+      'Selling Price': item.sellingPrice,
+      Quantity: item.quantity,
+      'Profit Margin': ((item.sellingPrice - item.purchasePrice) / item.purchasePrice * 100).toFixed(1) + '%',
+      'Total Value': (item.sellingPrice * item.quantity).toFixed(0),
+    }));
+    exportToCSV(csvData, 'inventory');
+    toast.success("Inventory exported successfully!");
+  };
+
+  const totalValue = items.reduce((s, i) => s + i.sellingPrice * i.quantity, 0);
+  const avgMargin = 18.5;
+
+  // ── Render a product table for a list of items (the EXISTING UI, unchanged) ──
+  const renderProductTable = (rows: typeof items) => (
+    <div className="rounded-xl border border-border bg-card overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-border bg-secondary/50">
+              <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Product</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Category</th>
+              <th className="px-4 py-3 text-right text-xs font-semibold text-muted-foreground">Purchase</th>
+              <th className="px-4 py-3 text-right text-xs font-semibold text-muted-foreground">Selling</th>
+              <th className="px-4 py-3 text-right text-xs font-semibold text-muted-foreground">Profit</th>
+              <th className="px-4 py-3 text-center text-xs font-semibold text-muted-foreground">Qty</th>
+              <th className="px-4 py-3 text-center text-xs font-semibold text-muted-foreground">Stock Status</th>
+              <th className="px-4 py-3 text-center text-xs font-semibold text-muted-foreground">Last Sold</th>
+              <th className="px-4 py-3 text-center text-xs font-semibold text-muted-foreground">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((item) => {
+              const profit = item.sellingPrice - item.purchasePrice;
+              const profitColor = getProfitMarginColor(profit);
+              const quantityStatus = getQuantityStatus(item.quantity);
+              const daysSinceLastSold = getDaysSinceLastSold(item.lastSoldDate);
+              const isItemDeadStock = isDeadStock(item.lastSoldDate);
+              return (
+                <tr key={item.id} className="border-b border-border/50 transition-colors hover:bg-secondary/30">
+                  <td className="px-4 py-3">
+                    <p className="font-medium text-card-foreground">{item.productName}</p>
+                    <p className="text-[11px] text-muted-foreground">{item.brand} · {item.distributor}</p>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className="rounded-md bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">{item.category}</span>
+                  </td>
+                  <td className="px-4 py-3 text-right font-mono text-xs text-muted-foreground">₹{item.purchasePrice.toLocaleString()}</td>
+                  <td className="px-4 py-3 text-right font-mono text-xs text-card-foreground font-medium">₹{item.sellingPrice.toLocaleString()}</td>
+                  <td className="px-4 py-3 text-right">
+                    <span className="font-mono text-xs font-medium px-2 py-0.5 rounded-md" style={{ color: profitColor.color, backgroundColor: profitColor.bgColor }}>
+                      ₹{profit.toLocaleString()}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    <span className="font-mono text-xs font-bold px-2 py-1 rounded-md" style={{ color: quantityStatus.color, backgroundColor: quantityStatus.bgColor }}>
+                      {item.quantity}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    <span className="rounded-md px-2 py-0.5 text-[10px] font-medium" style={{ color: quantityStatus.color, backgroundColor: quantityStatus.bgColor }}>
+                      {quantityStatus.status}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    <span className="text-xs font-medium" style={{ color: isItemDeadStock ? "#EF4444" : "#22C55E" }}>
+                      {daysSinceLastSold === 999 ? 'Never' : `${daysSinceLastSold}d ago`}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    <div className="flex justify-center gap-1">
+                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => { setSelectedProduct(item); setSalesModalOpen(true); }}>
+                        <Edit className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => handleDelete(item.id)}>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+
+  // ── Build the "All Categories" grouped view ──
+  const renderGroupedView = () => {
+    return CATEGORY_GROUPS.map((group) => {
+      // Items across all categories in this group
+      const groupItems = searchFiltered.filter(item => group.categories.includes(item.category));
+
+      return (
+        <div key={group.group}>
+          {/* Group Header */}
+          <div className="flex items-center justify-between border-b border-border pb-2 mb-4 mt-8 first:mt-0">
+            <div className="flex items-center gap-2">
+              {GROUP_ICONS[group.group]}
+              <span className="text-lg font-semibold text-foreground">{group.group}</span>
+              <Badge variant="secondary">{groupItems.length} items</Badge>
+            </div>
+          </div>
+
+          {/* Sub-sections per category */}
+          {group.categories.map((cat) => {
+            const catItems = searchFiltered.filter(item => item.category === cat);
+            return (
+              <div key={cat}>
+                {/* Category sub-header */}
+                <div className="flex items-center gap-2 mb-3 mt-5">
+                  <span className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+                    {cat}
+                  </span>
+                  <div className="flex-1 border-t border-border/50" />
+                  <span className="text-xs text-muted-foreground">
+                    {catItems.length} items
+                  </span>
+                </div>
+
+                {catItems.length > 0 ? (
+                  renderProductTable(catItems)
+                ) : (
+                  <p className="text-sm text-muted-foreground italic px-2 py-3">
+                    No {cat} products in inventory yet.
+                    <button
+                      className="ml-2 text-primary underline text-sm"
+                      onClick={() => openAddProductModal(cat)}
+                    >
+                      Add one →
+                    </button>
+                  </p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      );
+    });
+  };
+
+  // ── Build the "specific category" flat view with breadcrumb ──
+  const renderFilteredView = () => {
+    const groupName = findGroupForCategory(categoryFilter) ?? "Unknown";
+    return (
+      <div>
+        {/* Breadcrumb */}
+        <div className="flex items-center gap-1 text-sm text-muted-foreground mb-4 mt-2">
+          <button className="hover:text-primary transition-colors" onClick={() => setCategoryFilter("all")}>All</button>
+          <ChevronRight className="h-3.5 w-3.5" />
+          <span>{groupName}</span>
+          <ChevronRight className="h-3.5 w-3.5" />
+          <span className="text-foreground font-medium">{categoryFilter}</span>
+        </div>
+
+        {searchFiltered.length > 0 ? (
+          renderProductTable(searchFiltered)
+        ) : (
+          <p className="text-sm text-muted-foreground italic px-2 py-6 text-center">
+            No {categoryFilter} products found.{" "}
+            <button
+              className="text-primary underline text-sm"
+              onClick={() => openAddProductModal(categoryFilter)}
+            >
+              Add one →
+            </button>
+          </p>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -201,8 +351,17 @@ export default function Inventory() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isLoading}>
-            <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={handleExportCSV}
+            disabled={filteredItems.length === 0}
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Export CSV
+          </Button>
+          <Button variant="outline" size="sm" disabled>
+            <RefreshCw className="h-4 w-4 mr-2" />
             Sync
           </Button>
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -223,12 +382,15 @@ export default function Inventory() {
                   </div>
                   <div>
                     <Label className="text-xs text-muted-foreground">Category</Label>
-                    <Select value={newCategory} onValueChange={setNewCategory}>
-                      <SelectTrigger className="mt-1 bg-secondary border-none"><SelectValue placeholder="Select" /></SelectTrigger>
-                      <SelectContent>
-                        {['CPU', 'GPU', 'RAM', 'SSD', 'HDD', 'Motherboard', 'PSU', 'Case'].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
+                    <div className="mt-1">
+                      <CategoryDropdown
+                        value={newCategory}
+                        onChange={setNewCategory}
+                        triggerClassName="w-full"
+                        contentClassName="w-[220px]"
+                        showFilterIcon={false}
+                      />
+                    </div>
                   </div>
                 </div>
                 <div className="grid grid-cols-3 gap-3">
@@ -264,7 +426,7 @@ export default function Inventory() {
         </div>
       </div>
 
-      {/* Sales Modal Component - kept outside of Select and Dialog */}
+      {/* Sales Modal */}
       <SalesModal open={salesModalOpen} onOpenChange={setSalesModalOpen} product={selectedProduct} />
 
       {/* Quick Stats Cards */}
@@ -284,7 +446,6 @@ export default function Inventory() {
             </CardContent>
           </Card>
         </motion.div>
-
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
           <Card className="bg-card border-border">
             <CardContent className="p-4">
@@ -300,7 +461,6 @@ export default function Inventory() {
             </CardContent>
           </Card>
         </motion.div>
-
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
           <Card className="bg-card border-border">
             <CardContent className="p-4">
@@ -316,7 +476,6 @@ export default function Inventory() {
             </CardContent>
           </Card>
         </motion.div>
-
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
           <Card className="bg-card border-border">
             <CardContent className="p-4">
@@ -355,7 +514,7 @@ export default function Inventory() {
                 {metrics.stockMoreItems.length === 0 ? (
                   <p className="text-xs text-muted-foreground py-4 text-center">No items need restocking</p>
                 ) : (
-                  metrics.stockMoreItems.map((item, idx) => (
+                  metrics.stockMoreItems.map((item) => (
                     <div key={item.id} className="flex items-center justify-between p-2 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors">
                       <div className="flex-1">
                         <p className="text-sm font-medium text-foreground">{item.productName}</p>
@@ -394,7 +553,7 @@ export default function Inventory() {
                 {metrics.reduceStockItems.length === 0 ? (
                   <p className="text-xs text-muted-foreground py-4 text-center">No items need reduction</p>
                 ) : (
-                  metrics.reduceStockItems.map((item, idx) => {
+                  metrics.reduceStockItems.map((item) => {
                     const daysSinceLastSold = getDaysSinceLastSold(item.lastSoldDate);
                     return (
                       <div key={item.id} className="flex items-center justify-between p-2 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors">
@@ -462,110 +621,18 @@ export default function Inventory() {
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input placeholder="Search products..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10 bg-secondary border-none" />
         </div>
-        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-          <SelectTrigger className="w-40 bg-secondary border-none">
-            <Filter className="mr-2 h-3.5 w-3.5 text-muted-foreground" />
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Categories</SelectItem>
-            {['CPU', 'GPU', 'RAM', 'SSD', 'HDD', 'Motherboard', 'PSU', 'Case'].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        <CategoryDropdown
+          value={categoryFilter}
+          onChange={setCategoryFilter}
+          triggerClassName="w-52"
+          contentClassName="w-[240px]"
+        />
       </div>
 
-      {/* Table */}
-      {isLoading ? (
-        <Skeleton className="h-96 rounded-xl" />
-      ) : (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="rounded-xl border border-border bg-card overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border bg-secondary/50">
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Product</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Category</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-muted-foreground">Purchase</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-muted-foreground">Selling</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-muted-foreground">Profit</th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-muted-foreground">Qty</th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-muted-foreground">Stock Status</th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-muted-foreground">Last Sold</th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-muted-foreground">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((item) => {
-                  const profit = item.sellingPrice - item.purchasePrice;
-                  const profitColor = getProfitMarginColor(profit);
-                  const quantityStatus = getQuantityStatus(item.quantity);
-                  const daysSinceLastSold = getDaysSinceLastSold(item.lastSoldDate);
-                  const isItemDeadStock = isDeadStock(item.lastSoldDate);
-
-                  return (
-                    <tr key={item.id} className="border-b border-border/50 transition-colors hover:bg-secondary/30">
-                      <td className="px-4 py-3">
-                        <p className="font-medium text-card-foreground">{item.productName}</p>
-                        <p className="text-[11px] text-muted-foreground">{item.brand} · {item.distributor}</p>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="rounded-md bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">{item.category}</span>
-                      </td>
-                      <td className="px-4 py-3 text-right font-mono text-xs text-muted-foreground">₹{item.purchasePrice.toLocaleString()}</td>
-                      <td className="px-4 py-3 text-right font-mono text-xs text-card-foreground font-medium">₹{item.sellingPrice.toLocaleString()}</td>
-                      <td className="px-4 py-3 text-right">
-                        <span
-                          className="font-mono text-xs font-medium px-2 py-0.5 rounded-md"
-                          style={{ color: profitColor.color, backgroundColor: profitColor.bgColor }}
-                        >
-                          ₹{profit.toLocaleString()}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <span
-                          className="font-mono text-xs font-bold px-2 py-1 rounded-md"
-                          style={{ color: quantityStatus.color, backgroundColor: quantityStatus.bgColor }}
-                        >
-                          {item.quantity}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <span
-                          className="rounded-md px-2 py-0.5 text-[10px] font-medium"
-                          style={{ color: quantityStatus.color, backgroundColor: quantityStatus.bgColor }}
-                        >
-                          {quantityStatus.status}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <span
-                          className="text-xs font-medium"
-                          style={{ color: isItemDeadStock ? "#EF4444" : "#22C55E" }}
-                        >
-                          {daysSinceLastSold === 999 ? 'Never' : `${daysSinceLastSold}d ago`}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <div className="flex justify-center gap-1">
-                          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => {
-                            setSelectedProduct(item);
-                            setSalesModalOpen(true);
-                          }}>
-                            <Edit className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => handleDelete(item.id)}>
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </motion.div>
-      )}
+      {/* Product Table — grouped or flat depending on filter */}
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+        {categoryFilter === "all" ? renderGroupedView() : renderFilteredView()}
+      </motion.div>
     </div>
   );
 }

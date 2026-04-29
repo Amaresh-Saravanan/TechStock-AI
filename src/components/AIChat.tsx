@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
 
 interface Message {
   id: string;
@@ -66,36 +66,35 @@ export default function AIChat() {
     setIsLoading(true);
 
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 25000); // 25s timeout for AI
-
-      const response = await fetch(`${API_BASE_URL}/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text }),
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-
-      if (!response.ok) throw new Error('Failed to get response');
-
-      const data = await response.json();
+      // TODO: Replace with real AI call → POST /api/chat or Gemini API
+      await new Promise(resolve => setTimeout(resolve, 700));
+      
+      const lower = text.toLowerCase();
+      let reply = "I'm running on mock data right now. Connect the backend to get real AI insights!";
+      
+      if (lower.includes('restock') || lower.includes('stock')) {
+        reply = "📦 **Restock Now:**\n- **NVIDIA RTX 4060** — High demand, only 20 units left\n- **Corsair DDR5** — 5 units sold this week\n- **AMD Ryzen 7 7800X3D** — Supply constraints expected";
+      } else if (lower.includes('trend')) {
+        reply = "📈 **Trending:**\n1. NVIDIA RTX 4060 (fastest GPU)\n2. AMD Ryzen 7 7800X3D (gaming peak)\n3. DDR5 RAM (40% MoM growth)";
+      } else if (lower.includes('dead') || lower.includes('slow')) {
+        reply = "⚠️ **Dead Stock:**\n- AMD RX 7900 XTX — 130+ days unsold. Consider 10% off.\n- WD Blue 1TB HDD — Demand declining. Clear inventory.";
+      } else if (lower.includes('profit') || lower.includes('margin')) {
+        reply = "💰 **Profit Tips:**\n- GPU category leads at 22.4% margin\n- Bundle slow HDDs with SSDs\n- Match RTX 4060 price to boost sales 30%";
+      }
       
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: data.response,
+        content: reply,
         timestamp: new Date(),
       };
 
       setMessages(prev => [...prev, assistantMessage]);
     } catch (error) {
-      // Fallback error message
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: "⚠️ Network Error: I couldn't connect to the backend server. Please make sure the app backend is running natively and not timing out.",
+        content: "Something went wrong. Please try again.",
         timestamp: new Date(),
       };
       setMessages(prev => [...prev, errorMessage]);
