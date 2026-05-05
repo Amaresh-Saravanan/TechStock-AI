@@ -1,7 +1,5 @@
 import { Link } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { useEffect, useRef, useState, lazy, Suspense } from "react";
 import {
   Monitor,
   Heart,
@@ -16,367 +14,400 @@ import {
   Globe,
   Shield,
   Rocket,
+  Sparkles,
 } from "lucide-react";
+import "../styles/landing.css";
 
+/* Lazy-load the 3D Earth scene */
+const EarthScene = lazy(() => import("../components/landing/EarthScene"));
+
+/* ─── Scroll reveal hook ─── */
+function useReveal(threshold = 0.15) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      ([e]) => { if (e.isIntersecting) { el.classList.add("visible"); io.unobserve(el); } },
+      { threshold }
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [threshold]);
+  return ref;
+}
+
+/* ─── Staggered children reveal ─── */
+function useStaggerReveal(count: number, base = 120) {
+  const refs = useRef<(HTMLDivElement | null)[]>([]);
+  useEffect(() => {
+    const observers: IntersectionObserver[] = [];
+    refs.current.forEach((el, i) => {
+      if (!el) return;
+      const io = new IntersectionObserver(
+        ([e]) => {
+          if (e.isIntersecting) {
+            setTimeout(() => el.classList.add("visible"), i * base);
+            io.unobserve(el);
+          }
+        },
+        { threshold: 0.1 }
+      );
+      io.observe(el);
+      observers.push(io);
+    });
+    return () => observers.forEach((o) => o.disconnect());
+  }, [count, base]);
+  return (i: number) => (el: HTMLDivElement | null) => { refs.current[i] = el; };
+}
+
+/* ─── Animated counter for pricing ─── */
+function useAnimatedNumber(target: number, duration = 1200) {
+  const [value, setValue] = useState(0);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      ([e]) => {
+        if (e.isIntersecting) {
+          const start = performance.now();
+          const tick = (now: number) => {
+            const p = Math.min((now - start) / duration, 1);
+            const eased = 1 - Math.pow(1 - p, 3);
+            setValue(Math.floor(eased * target));
+            if (p < 1) requestAnimationFrame(tick);
+          };
+          requestAnimationFrame(tick);
+          io.unobserve(el);
+        }
+      },
+      { threshold: 0.5 }
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [target, duration]);
+  return { ref, value };
+}
+
+/* ═══════════════════════════════════════════════════════ */
+/*                     HOME PAGE                         */
+/* ═══════════════════════════════════════════════════════ */
 const Home = () => {
+  const featRef = useReveal();
+  const aboutRef = useReveal();
+  const servRef = useReveal();
+  const priceRef = useReveal();
+  const trustRef = useReveal();
+
+  const featCards = useStaggerReveal(4, 150);
+  const aboutCards = useStaggerReveal(3, 180);
+  const servCards = useStaggerReveal(4, 140);
+  const priceCards = useStaggerReveal(3, 200);
+
   return (
-    <div className="min-h-screen bg-background">
-      {/* Navigation */}
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b border-border">
-        <div className="container mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Cpu className="h-8 w-8 text-primary" />
-            <span className="text-xl font-bold">TechStock AI</span>
+    <div style={{ background: "#050A18", minHeight: "100vh", overflowX: "hidden" }}>
+
+      {/* ─── NAV ─── */}
+      <nav className="nav-neo">
+        <Link to="/" className="logo-neo">
+          <div className="logo-icon">
+            <Cpu className="h-5 w-5 text-white" />
           </div>
-          <div className="hidden md:flex items-center gap-8">
-            <a href="#features" className="text-muted-foreground hover:text-foreground transition-colors">Features</a>
-            <a href="#about" className="text-muted-foreground hover:text-foreground transition-colors">About</a>
-            <a href="#services" className="text-muted-foreground hover:text-foreground transition-colors">Services</a>
-            <a href="#pricing" className="text-muted-foreground hover:text-foreground transition-colors">Pricing</a>
-          </div>
-          <div className="flex items-center gap-4">
-            <Link to="/login">
-              <Button variant="ghost">Login</Button>
-            </Link>
-            <Link to="/register">
-              <Button>Get Started</Button>
-            </Link>
-          </div>
+          <span>TechStock AI</span>
+        </Link>
+
+        <div className="hidden md:flex items-center gap-8">
+          {["Features", "About", "Services", "Pricing"].map((s) => (
+            <a key={s} href={`#${s.toLowerCase()}`} className="nav-link-neo">{s}</a>
+          ))}
+        </div>
+
+        <div className="flex items-center gap-3">
+          <Link to="/login">
+            <button className="btn-outline-neo" style={{ padding: "8px 20px", fontSize: "0.875rem" }}>
+              Login
+            </button>
+          </Link>
+          <Link to="/register">
+            <button className="btn-primary-neo" style={{ padding: "8px 20px", fontSize: "0.875rem" }}>
+              Get Started
+            </button>
+          </Link>
         </div>
       </nav>
 
-      {/* Hero Section */}
-      <section className="relative min-h-screen flex items-center justify-center overflow-hidden pt-16">
-        {/* Background with gradient and pattern */}
-        <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-          {/* Geometric pattern overlay */}
-          <div className="absolute inset-0 opacity-20">
-            <svg className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
-              <defs>
-                <pattern id="grid" width="60" height="60" patternUnits="userSpaceOnUse">
-                  <path d="M 60 0 L 0 0 0 60" fill="none" stroke="currentColor" strokeWidth="0.5" className="text-primary"/>
-                </pattern>
-              </defs>
-              <rect width="100%" height="100%" fill="url(#grid)" />
-            </svg>
-          </div>
-          {/* Animated gradient orbs */}
-          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/20 rounded-full blur-3xl animate-pulse"></div>
-          <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-blue-500/20 rounded-full blur-3xl animate-pulse delay-1000"></div>
-        </div>
+      {/* ─── FIXED 3D EARTH BACKGROUND ─── */}
+      <Suspense fallback={null}>
+        <EarthScene />
+      </Suspense>
 
-        <div className="relative z-10 container mx-auto px-6 text-center">
-          <Badge className="mb-6 bg-primary/20 text-primary border-primary/30 hover:bg-primary/30">
-            AI-Powered Inventory Management
-          </Badge>
-          <h1 className="text-5xl md:text-7xl font-bold mb-6">
-            <span className="text-white">TECH</span>
-            <span className="text-primary">STOCK</span>
-            <span className="text-white"> AI</span>
-          </h1>
-          <p className="text-xl md:text-2xl text-slate-300 mb-8 max-w-3xl mx-auto">
-            Say hello to the smartest inventory management platform powered by artificial intelligence for tech retailers
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link to="/register">
-              <Button size="lg" className="px-8 py-6 text-lg">
-                Get Started
-                <ChevronRight className="ml-2 h-5 w-5" />
-              </Button>
-            </Link>
-            <Link to="/login">
-              <Button size="lg" variant="outline" className="px-8 py-6 text-lg border-slate-600 text-white hover:bg-slate-800">
-                View Demo
-              </Button>
-            </Link>
+      {/* ─── HERO ─── */}
+      <section className="hero-full relative z-10" style={{ background: "transparent" }}>
+        <div className="container mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 items-center h-full pt-20">
+          {/* Left Text Content */}
+          <div style={{ textAlign: "left" }}>
+            <div className="section-label" style={{ marginBottom: "1.5rem", display: "inline-flex", background: "#0f172a", border: "none", color: "#60a5fa", borderRadius: "999px", padding: "6px 16px", fontSize: "0.85rem", alignItems: "center", gap: "8px" }}>
+              Welcome to TechStock AI <ChevronRight className="w-4 h-4" />
+            </div>
+
+            <h1 className="hero-heading" style={{ textAlign: "left", fontSize: "clamp(3rem, 6vw, 4.5rem)", lineHeight: 1.1, marginBottom: "1.5rem" }}>
+              <span style={{ color: "#fff" }}>Next-Gen</span>
+              <br />
+              <span style={{ color: "#fff" }}>Inventory & Trading</span>
+              <br />
+              <span style={{ color: "#fff" }}>Infrastructure.</span>
+            </h1>
+
+            <p className="hero-sub" style={{ textAlign: "left", margin: "0 0 2.5rem 0", color: "rgba(148,163,184,0.7)", maxWidth: "500px", fontSize: "1.1rem" }}>
+              TechStock redefines the retail experience by combining the usability of centralized
+              exchanges with the transparency and security of decentralized protocols.
+            </p>
+
+            <div className="flex flex-wrap gap-4">
+              <Link to="/register">
+                <button className="btn-primary-neo" style={{ background: "#fff", color: "#000" }}>
+                  Get Started For Free
+                </button>
+              </Link>
+              <Link to="/login">
+                <button className="btn-outline-neo" style={{ background: "#fff", color: "#000", border: "none" }}>
+                  Explore More
+                </button>
+              </Link>
+            </div>
           </div>
+          
+          {/* Right side is intentionally empty to let the 3D scene show through */}
+          <div></div>
         </div>
 
         {/* Scroll indicator */}
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce">
-          <div className="w-6 h-10 border-2 border-slate-500 rounded-full flex justify-center">
-            <div className="w-1 h-3 bg-slate-500 rounded-full mt-2 animate-pulse"></div>
+        <div className="scroll-neo">
+          <span>Scroll</span>
+          <div className="scroll-line" />
+        </div>
+      </section>
+
+      {/* ─── TRUSTED BY ─── */}
+      <section style={{ padding: "3.5rem 0", borderTop: "1px solid rgba(59,130,246,0.06)", borderBottom: "1px solid rgba(59,130,246,0.06)" }}>
+        <div ref={trustRef} className="section-reveal" style={{ maxWidth: 1200, margin: "0 auto", padding: "0 1.5rem", textAlign: "center" }}>
+          <p style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: "0.85rem", color: "rgba(100,116,139,0.5)", marginBottom: "1.5rem", letterSpacing: "0.1em", textTransform: "uppercase" }}>
+            Trusted by over <span style={{ color: "#22d3ee" }}>1,000</span> organizations worldwide
+          </p>
+          <div className="trusted-strip">
+            {["DELL", "Zendesk", "Rakuten", "Pacific Funds", "NCR", "Lattice", "TEK"].map((n) => (
+              <span key={n} className="trusted-name">{n}</span>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* Features Section */}
-      <section id="features" className="py-24 bg-background">
-        <div className="container mx-auto px-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-            <FeatureCard
-              icon={<Monitor className="h-12 w-12" />}
-              title="FULLY RESPONSIVE"
-              description="Access your inventory from any device - desktop, tablet, or mobile with a seamless experience."
-            />
-            <FeatureCard
-              icon={<Heart className="h-12 w-12" />}
-              title="BUILT WITH CARE"
-              description="Developed with attention to detail, every feature is crafted to enhance your workflow."
-            />
-            <FeatureCard
-              icon={<Layers className="h-12 w-12" />}
-              title="MULTI-PLATFORM"
-              description="Integrate with multiple e-commerce platforms and manage all your inventory in one place."
-            />
-            <FeatureCard
-              icon={<Zap className="h-12 w-12" />}
-              title="REAL-TIME SYNC"
-              description="Lightning-fast synchronization ensures your data is always up-to-date across all channels."
-            />
-          </div>
-        </div>
-      </section>
-
-      {/* About Section */}
-      <section id="about" className="py-24 bg-slate-900 text-white">
-        <div className="container mx-auto px-6">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-bold mb-4">
-              ABOUT <span className="text-primary">US</span>
+      {/* ─── FEATURES ─── */}
+      <section id="features" className="relative z-10" style={{ padding: "7rem 0" }}>
+        <div ref={featRef} className="section-reveal" style={{ maxWidth: 1200, margin: "0 auto", padding: "0 1.5rem" }}>
+          <div style={{ textAlign: "center", marginBottom: "4rem" }}>
+            <div className="section-label" style={{ margin: "0 auto 1rem" }}>
+              <Sparkles className="w-3.5 h-3.5" /> Features
+            </div>
+            <h2 className="section-heading">
+              Discover <span className="gradient-text-neo">Features</span>
             </h2>
-            <p className="text-primary uppercase tracking-widest mb-6">We Create Awesome Solutions</p>
-            <p className="text-slate-400 max-w-2xl mx-auto">
-              TechStock AI revolutionizes how tech retailers manage their inventory with cutting-edge artificial intelligence and machine learning algorithms.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <AboutCard
-              icon={<TrendingUp className="h-16 w-16" />}
-              title="AI PREDICTIONS"
-              description="Our advanced AI analyzes market trends, seasonal patterns, and historical data to predict demand and optimize your stock levels automatically."
-            />
-            <AboutCard
-              icon={<BarChart3 className="h-16 w-16" />}
-              title="SMART ANALYTICS"
-              description="Get deep insights into your inventory performance with real-time analytics, custom reports, and actionable recommendations."
-            />
-            <AboutCard
-              icon={<Bell className="h-16 w-16" />}
-              title="INTELLIGENT ALERTS"
-              description="Stay ahead with smart notifications for low stock, price changes, trending products, and potential supply chain issues."
-            />
-          </div>
-        </div>
-      </section>
-
-      {/* Services Section */}
-      <section id="services" className="py-24 bg-slate-800">
-        <div className="container mx-auto px-6">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">
-              OUR <span className="text-primary">SERVICES</span>
-            </h2>
-            <p className="text-slate-400 max-w-2xl mx-auto">
-              Comprehensive solutions designed to streamline your tech retail operations
+            <p style={{ fontFamily: "'Space Grotesk', sans-serif", color: "rgba(148,163,184,0.7)", maxWidth: 600, margin: "0 auto" }}>
+              Everything you need to dominate inventory management — AI predictions, real-time sync, and multi-platform integration.
             </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <ServiceCard
-              icon={<Globe className="h-10 w-10" />}
-              title="Price Tracking"
-              description="Monitor competitor prices across multiple platforms and adjust your pricing strategy in real-time."
-            />
-            <ServiceCard
-              icon={<Cpu className="h-10 w-10" />}
-              title="Build Generator"
-              description="AI-powered PC build recommendations based on customer requirements and current inventory."
-            />
-            <ServiceCard
-              icon={<Shield className="h-10 w-10" />}
-              title="Inventory Security"
-              description="Advanced security features to protect your inventory data and prevent unauthorized access."
-            />
-            <ServiceCard
-              icon={<Rocket className="h-10 w-10" />}
-              title="Quick Integration"
-              description="Seamlessly integrate with your existing e-commerce platforms and ERP systems."
-            />
-          </div>
-        </div>
-      </section>
-
-      {/* Pricing Section */}
-      <section id="pricing" className="py-24 bg-slate-900">
-        <div className="container mx-auto px-6">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">
-              Choose Your <span className="text-primary">Plan</span>
-            </h2>
-            <p className="text-slate-400 max-w-2xl mx-auto">
-              Flexible pricing plans designed to scale with your business needs
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
-            {/* Individual Plan */}
-            <Card className="bg-slate-800/50 border-slate-700 relative overflow-hidden">
-              <CardHeader className="pb-4">
-                <CardTitle className="text-white text-xl">Individual</CardTitle>
-                <p className="text-slate-400 text-sm">For small retailers & freelancers</p>
-              </CardHeader>
-              <CardContent>
-                <div className="mb-6">
-                  <span className="text-slate-500 line-through text-lg">$29.99</span>
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-4xl font-bold text-white">$19</span>
-                    <span className="text-2xl text-white">.99</span>
-                  </div>
-                  <p className="text-slate-400 text-sm">Billed each month/ Per user</p>
+            {[
+              { icon: <Monitor className="h-6 w-6 text-cyan-400" />, title: "Fully Responsive", desc: "Seamless experience on any device — desktop, tablet, or mobile." },
+              { icon: <Heart className="h-6 w-6 text-cyan-400" />, title: "Built with Care", desc: "Every feature is meticulously crafted to enhance your workflow." },
+              { icon: <Layers className="h-6 w-6 text-cyan-400" />, title: "Multi-Platform", desc: "Integrate all your e-commerce channels in one unified dashboard." },
+              { icon: <Zap className="h-6 w-6 text-cyan-400" />, title: "Real-Time Sync", desc: "Lightning-fast data sync across all channels, always up-to-date." },
+            ].map((f, i) => (
+              <div key={f.title} ref={featCards(i)} className={i % 2 === 0 ? "card-reveal-left" : "card-reveal-right"}>
+                <div className="glass-card-neo" style={{ height: "100%" }}>
+                  <div className="icon-neo">{f.icon}</div>
+                  <h3 style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 600, color: "#fff", fontSize: "1.05rem", marginBottom: 8 }}>{f.title}</h3>
+                  <p style={{ fontFamily: "'Space Grotesk',sans-serif", color: "rgba(148,163,184,0.7)", fontSize: "0.9rem", lineHeight: 1.6 }}>{f.desc}</p>
                 </div>
-                <ul className="space-y-3 mb-8">
-                  <PricingFeature>Up to 1,000 SKUs</PricingFeature>
-                  <PricingFeature>Basic AI predictions</PricingFeature>
-                  <PricingFeature>Price tracking (5 competitors)</PricingFeature>
-                  <PricingFeature>Email support</PricingFeature>
-                  <PricingFeature>Basic analytics dashboard</PricingFeature>
-                </ul>
-                <Link to="/register">
-                  <Button className="w-full bg-primary hover:bg-primary/90">
-                    Get Started
-                  </Button>
-                </Link>
-              </CardContent>
-            </Card>
-
-            {/* Team Plan - Featured */}
-            <Card className="bg-gradient-to-b from-primary/20 to-primary/5 border-primary relative overflow-hidden scale-105 shadow-2xl shadow-primary/20">
-              <div className="absolute top-0 right-0 bg-primary text-white text-xs px-3 py-1">
-                POPULAR
               </div>
-              <CardHeader className="pb-4">
-                <CardTitle className="text-white text-xl">Team</CardTitle>
-                <p className="text-slate-400 text-sm">For growing businesses</p>
-              </CardHeader>
-              <CardContent>
-                <div className="mb-6">
-                  <span className="text-slate-500 line-through text-lg">$49.99</span>
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-4xl font-bold text-white">$34</span>
-                    <span className="text-2xl text-white">.99</span>
-                  </div>
-                  <p className="text-slate-400 text-sm">Billed each month/ Per user</p>
-                </div>
-                <ul className="space-y-3 mb-8">
-                  <PricingFeature highlighted>Up to 10,000 SKUs</PricingFeature>
-                  <PricingFeature highlighted>Advanced AI predictions</PricingFeature>
-                  <PricingFeature highlighted>Unlimited price tracking</PricingFeature>
-                  <PricingFeature highlighted>Team collaboration (up to 5)</PricingFeature>
-                  <PricingFeature highlighted>Priority support</PricingFeature>
-                  <PricingFeature highlighted>Custom reports</PricingFeature>
-                </ul>
-                <Link to="/register">
-                  <Button className="w-full bg-white text-slate-900 hover:bg-slate-100">
-                    Get Team Access
-                  </Button>
-                </Link>
-              </CardContent>
-            </Card>
-
-            {/* Pro+ Plan */}
-            <Card className="bg-slate-800/50 border-slate-700 relative overflow-hidden">
-              <CardHeader className="pb-4">
-                <CardTitle className="text-white text-xl">Pro+</CardTitle>
-                <p className="text-slate-400 text-sm">For enterprise retailers</p>
-              </CardHeader>
-              <CardContent>
-                <div className="mb-6">
-                  <span className="text-slate-500 line-through text-lg">$99.99</span>
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-4xl font-bold text-white">$59</span>
-                    <span className="text-2xl text-white">.99</span>
-                  </div>
-                  <p className="text-slate-400 text-sm">Billed each month/ Per user</p>
-                </div>
-                <ul className="space-y-3 mb-8">
-                  <PricingFeature>Unlimited SKUs</PricingFeature>
-                  <PricingFeature>Enterprise AI models</PricingFeature>
-                  <PricingFeature>API access</PricingFeature>
-                  <PricingFeature>Dedicated account manager</PricingFeature>
-                  <PricingFeature>24/7 phone support</PricingFeature>
-                  <PricingFeature>Custom integrations</PricingFeature>
-                </ul>
-                <Link to="/register">
-                  <Button className="w-full bg-primary hover:bg-primary/90">
-                    Get Pro+ Access
-                  </Button>
-                </Link>
-              </CardContent>
-            </Card>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="py-12 bg-slate-950 border-t border-slate-800">
-        <div className="container mx-auto px-6">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <Cpu className="h-6 w-6 text-primary" />
-              <span className="font-bold">TechStock AI</span>
-            </div>
-            <p className="text-slate-500 text-sm">
-              © 2026 TechStock AI. All rights reserved.
+      {/* ─── ABOUT ─── */}
+      <section id="about" className="relative z-10" style={{ padding: "7rem 0" }}>
+        <div ref={aboutRef} className="section-reveal" style={{ maxWidth: 1200, margin: "0 auto", padding: "0 1.5rem" }}>
+          <div style={{ textAlign: "center", marginBottom: "4rem" }}>
+            <h2 className="section-heading">
+              About <span className="gradient-text-neo">Us</span>
+            </h2>
+            <p style={{ fontFamily: "'Space Grotesk',sans-serif", color: "#22d3ee", textTransform: "uppercase", letterSpacing: "0.2em", fontSize: "0.8rem", marginBottom: "1rem" }}>
+              We Create Awesome Solutions
             </p>
-            <div className="flex items-center gap-6">
-              <a href="#" className="text-slate-500 hover:text-white transition-colors text-sm">Privacy</a>
-              <a href="#" className="text-slate-500 hover:text-white transition-colors text-sm">Terms</a>
-              <a href="#" className="text-slate-500 hover:text-white transition-colors text-sm">Contact</a>
-            </div>
+            <p style={{ fontFamily: "'Space Grotesk',sans-serif", color: "rgba(148,163,184,0.7)", maxWidth: 600, margin: "0 auto" }}>
+              Revolutionizing tech retail with cutting-edge AI and machine learning.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {[
+              { icon: <TrendingUp className="h-8 w-8 text-cyan-400" />, title: "AI Predictions", desc: "Analyzes market trends, seasonal patterns, and history to optimize stock levels." },
+              { icon: <BarChart3 className="h-8 w-8 text-cyan-400" />, title: "Smart Analytics", desc: "Real-time analytics, custom reports, and actionable recommendations." },
+              { icon: <Bell className="h-8 w-8 text-cyan-400" />, title: "Intelligent Alerts", desc: "Smart notifications for low stock, price changes, and supply chain issues." },
+            ].map((a, i) => (
+              <div key={a.title} ref={aboutCards(i)} className="card-reveal-up" style={{ transitionDelay: `${i * 0.15}s` }}>
+                <div className="glass-card-neo" style={{ textAlign: "center", height: "100%" }}>
+                  <div className="icon-neo" style={{ width: 70, height: 70, margin: "0 auto 1.25rem", borderRadius: 20 }}>{a.icon}</div>
+                  <h3 style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, color: "#fff", fontSize: "1.2rem", marginBottom: 8 }}>{a.title}</h3>
+                  <p style={{ fontFamily: "'Space Grotesk',sans-serif", color: "rgba(148,163,184,0.7)", fontSize: "0.9rem", lineHeight: 1.6 }}>{a.desc}</p>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
+      </section>
+
+      {/* ─── SERVICES ─── */}
+      <section id="services" className="relative z-10" style={{ padding: "7rem 0" }}>
+        <div ref={servRef} className="section-reveal" style={{ maxWidth: 1200, margin: "0 auto", padding: "0 1.5rem" }}>
+          <div style={{ textAlign: "center", marginBottom: "4rem" }}>
+            <h2 className="section-heading">
+              Our <span className="gradient-text-neo">Services</span>
+            </h2>
+            <p style={{ fontFamily: "'Space Grotesk',sans-serif", color: "rgba(148,163,184,0.7)", maxWidth: 600, margin: "0 auto" }}>
+              Comprehensive solutions to streamline your tech retail operations.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {[
+              { icon: <Globe className="h-7 w-7 text-cyan-400" />, title: "Price Tracking", desc: "Monitor competitor prices and adjust strategy in real-time." },
+              { icon: <Cpu className="h-7 w-7 text-cyan-400" />, title: "Build Generator", desc: "AI-powered PC builds based on requirements and inventory." },
+              { icon: <Shield className="h-7 w-7 text-cyan-400" />, title: "Inventory Security", desc: "Advanced features to protect data and prevent unauthorized access." },
+              { icon: <Rocket className="h-7 w-7 text-cyan-400" />, title: "Quick Integration", desc: "Seamlessly connect your existing platforms and ERP systems." },
+            ].map((s, i) => (
+              <div key={s.title} ref={servCards(i)} className="card-reveal-scale">
+                <div className="glass-card-neo" style={{ height: "100%" }}>
+                  <div className="icon-neo">{s.icon}</div>
+                  <h3 style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 600, color: "#fff", marginBottom: 8 }}>{s.title}</h3>
+                  <p style={{ fontFamily: "'Space Grotesk',sans-serif", color: "rgba(148,163,184,0.7)", fontSize: "0.9rem", lineHeight: 1.6 }}>{s.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ─── PRICING ─── */}
+      <section id="pricing" className="relative z-10" style={{ padding: "7rem 0" }}>
+        <div ref={priceRef} className="section-reveal" style={{ maxWidth: 1100, margin: "0 auto", padding: "0 1.5rem" }}>
+          <div style={{ textAlign: "center", marginBottom: "4rem" }}>
+            <h2 className="section-heading">
+              Choose Your <span className="gradient-text-neo">Plan</span>
+            </h2>
+            <p style={{ fontFamily: "'Space Grotesk',sans-serif", color: "rgba(148,163,184,0.7)", maxWidth: 500, margin: "0 auto" }}>
+              Flexible pricing that scales with your business.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-start">
+            <PricingCard ref_={priceCards(0)} title="Individual" subtitle="For small retailers" oldPrice="$29.99" price={19} cents=".99"
+              features={["Up to 1,000 SKUs", "Basic AI predictions", "Price tracking (5)", "Email support", "Basic dashboard"]} cta="Get Started" />
+            <PricingCard ref_={priceCards(1)} title="Team" subtitle="For growing businesses" oldPrice="$49.99" price={34} cents=".99"
+              features={["Up to 10,000 SKUs", "Advanced AI", "Unlimited tracking", "Team collab (5)", "Priority support", "Custom reports"]} cta="Get Team Access" popular />
+            <PricingCard ref_={priceCards(2)} title="Pro+" subtitle="For enterprise" oldPrice="$99.99" price={59} cents=".99"
+              features={["Unlimited SKUs", "Enterprise AI", "API access", "Account manager", "24/7 support", "Custom integrations"]} cta="Get Pro+ Access" />
+          </div>
+        </div>
+      </section>
+
+      {/* ─── FOOTER (simplified) ─── */}
+      <footer className="footer-neo relative z-10" style={{ background: "rgba(3,7,18,0.8)", backdropFilter: "blur(10px)" }}>
+        <div className="logo-icon" style={{ width: 28, height: 28, borderRadius: 8 }}>
+          <Cpu className="h-3.5 w-3.5 text-white" />
+        </div>
+        <span>© 2026 TechStock AI</span>
       </footer>
     </div>
   );
 };
 
-// Feature Card Component
-const FeatureCard = ({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) => (
-  <div className="text-center p-8 group">
-    <div className="inline-flex items-center justify-center w-24 h-24 rounded-full border-2 border-slate-200 dark:border-slate-700 mb-6 group-hover:border-primary group-hover:text-primary transition-colors">
-      {icon}
-    </div>
-    <h3 className="text-lg font-bold mb-3 uppercase tracking-wide">{title}</h3>
-    <p className="text-muted-foreground text-sm leading-relaxed">{description}</p>
-  </div>
-);
+/* ─── Pricing Card with animated counter ─── */
+function PricingCard({
+  ref_,
+  title,
+  subtitle,
+  oldPrice,
+  price,
+  cents,
+  features,
+  cta,
+  popular,
+}: {
+  ref_: (el: HTMLDivElement | null) => void;
+  title: string;
+  subtitle: string;
+  oldPrice: string;
+  price: number;
+  cents: string;
+  features: string[];
+  cta: string;
+  popular?: boolean;
+}) {
+  const counter = useAnimatedNumber(price);
 
-// About Card Component
-const AboutCard = ({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) => (
-  <div className="text-center p-8">
-    <div className="inline-flex items-center justify-center w-20 h-20 rounded-full border-2 border-slate-600 text-primary mb-6">
-      {icon}
-    </div>
-    <h3 className="text-xl font-bold mb-2">
-      {title.split(' ')[0]} <span className="text-primary">{title.split(' ').slice(1).join(' ')}</span>
-    </h3>
-    <p className="text-slate-400 text-sm leading-relaxed">{description}</p>
-  </div>
-);
+  return (
+    <div ref={ref_} className="card-reveal-up">
+      <div ref={counter.ref} className={`pricing-card ${popular ? "popular" : ""}`}>
+        {popular && (
+          <div style={{
+            position: "absolute", top: 0, right: 0,
+            padding: "4px 16px", borderRadius: "0 24px 0 12px",
+            background: "linear-gradient(135deg, #0891b2, #3b82f6)",
+            fontFamily: "'Space Grotesk',sans-serif",
+            fontSize: "0.7rem", fontWeight: 700, color: "#fff", letterSpacing: "0.08em",
+          }}>
+            POPULAR
+          </div>
+        )}
+        <h3 style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, color: "#fff", fontSize: "1.3rem" }}>{title}</h3>
+        <p style={{ fontFamily: "'Space Grotesk',sans-serif", color: "rgba(148,163,184,0.6)", fontSize: "0.85rem", marginBottom: "1.5rem" }}>{subtitle}</p>
 
-// Service Card Component
-const ServiceCard = ({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) => (
-  <Card className="bg-white dark:bg-slate-900 border-0 shadow-lg hover:shadow-xl transition-shadow">
-    <CardContent className="p-6 text-center">
-      <div className="inline-flex items-center justify-center w-16 h-16 rounded-lg bg-primary/10 text-primary mb-4">
-        {icon}
+        <div style={{ marginBottom: "1.5rem" }}>
+          <span style={{ color: "rgba(100,116,139,0.4)", textDecoration: "line-through", fontSize: "0.9rem" }}>{oldPrice}</span>
+          <div className="flex items-baseline gap-0.5">
+            <span className="price-amount">${counter.value}</span>
+            <span className="price-cents">{cents}</span>
+          </div>
+          <p style={{ fontFamily: "'Space Grotesk',sans-serif", color: "rgba(100,116,139,0.4)", fontSize: "0.75rem", marginTop: 4 }}>Billed monthly / Per user</p>
+        </div>
+
+        <ul style={{ listStyle: "none", padding: 0, margin: "0 0 1.5rem", display: "flex", flexDirection: "column", gap: 12 }}>
+          {features.map((f) => (
+            <li key={f} className="flex items-center gap-3">
+              <div style={{
+                width: 20, height: 20, borderRadius: "50%", flexShrink: 0,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                background: popular ? "#0891b2" : "rgba(34,211,238,0.15)",
+              }}>
+                <Check className="h-3 w-3" style={{ color: popular ? "#fff" : "#22d3ee" }} />
+              </div>
+              <span style={{ fontFamily: "'Space Grotesk',sans-serif", color: "rgba(203,213,225,0.8)", fontSize: "0.9rem" }}>{f}</span>
+            </li>
+          ))}
+        </ul>
+
+        <Link to="/register" style={{ display: "block" }}>
+          <button className={popular ? "btn-primary-neo" : "btn-outline-neo"} style={{ width: "100%", justifyContent: "center" }}>
+            {cta}
+          </button>
+        </Link>
       </div>
-      <h3 className="text-lg font-semibold mb-2">{title}</h3>
-      <p className="text-muted-foreground text-sm">{description}</p>
-    </CardContent>
-  </Card>
-);
-
-// Pricing Feature Component
-const PricingFeature = ({ children, highlighted = false }: { children: React.ReactNode; highlighted?: boolean }) => (
-  <li className="flex items-center gap-3">
-    <div className={`flex items-center justify-center w-5 h-5 rounded-full ${highlighted ? 'bg-primary' : 'bg-primary/20'}`}>
-      <Check className={`h-3 w-3 ${highlighted ? 'text-white' : 'text-primary'}`} />
     </div>
-    <span className="text-slate-300 text-sm">{children}</span>
-  </li>
-);
+  );
+}
 
 export default Home;
