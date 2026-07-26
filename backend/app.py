@@ -49,6 +49,13 @@ app = Flask(__name__)
 # Basic Config
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-prod-123')
 app.config['JWT_SECRET_KEY'] = os.environ.get('JWT_SECRET_KEY', 'dev-jwt-secret-key-change-in-prod-123')
+
+# Enforce strong secrets in production
+if os.environ.get('FLASK_ENV') == 'production':
+    if app.config['SECRET_KEY'] == 'dev-secret-key-change-in-prod-123':
+        raise RuntimeError('SECRET_KEY must be set to a strong value in production')
+    if app.config['JWT_SECRET_KEY'] == 'dev-jwt-secret-key-change-in-prod-123':
+        raise RuntimeError('JWT_SECRET_KEY must be set to a strong value in production')
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///techstock.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
@@ -1435,9 +1442,9 @@ def ai_chat():
             "response": "⚠️ Sorry, my Gemini AI brain is disconnected! Please ensure `GEMINI_API_KEY` is properly configured in your backend `.env` file."
         }), 200
         
-    if GEMINI_API_KEY == 'AIzaSyCqgOnZ2Gr10rQefZl1Xsyvs3KSmlzsL_8':
+    if GEMINI_API_KEY and len(GEMINI_API_KEY) < 20:
         return jsonify({
-            "response": "⚠️ **Configuration Needed!**\n\nThe current `GEMINI_API_KEY` in your `.env` is a dummy placeholder.\nPlease get a free Gemini API Key from [Google AI Studio](https://aistudio.google.com/app/apikey) and place it in `backend/.env`!"
+            "response": "⚠️ **Configuration Needed!**\n\nThe current `GEMINI_API_KEY` in your `.env` appears to be a placeholder.\nPlease get a free Gemini API Key from [Google AI Studio](https://aistudio.google.com/app/apikey) and place it in `backend/.env`!"
         }), 200
 
     try:

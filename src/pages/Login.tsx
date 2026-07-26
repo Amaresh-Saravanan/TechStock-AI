@@ -31,11 +31,11 @@ export default function Login() {
     setIsSubmitting(true);
 
     try {
-      await new Promise(resolve => setTimeout(resolve, 600));
-      login(email, password);
+      await login(email, password);
       navigate(from, { replace: true });
-    } catch (err) {
-      setError("Invalid credentials. Please try again.");
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setError(msg || "Invalid email or password. Please try again.");
     } finally {
       setIsSubmitting(false);
     }

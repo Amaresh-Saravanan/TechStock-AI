@@ -43,11 +43,16 @@ export default function Register() {
     setIsSubmitting(true);
 
     try {
-      await new Promise(resolve => setTimeout(resolve, 600));
-      register(name, email, password);
+      await register(name, email, password, storeName, role);
       navigate(from, { replace: true });
-    } catch (err) {
-      setError("Registration failed. Please try again.");
+    } catch (err: unknown) {
+      const errData = (err as { response?: { data?: Record<string, string[]> } })?.response?.data;
+      if (errData) {
+        const firstKey = Object.keys(errData)[0];
+        setError(errData[firstKey]?.[0] || "Registration failed. Please try again.");
+      } else {
+        setError("Registration failed. Please try again.");
+      }
     } finally {
       setIsSubmitting(false);
     }

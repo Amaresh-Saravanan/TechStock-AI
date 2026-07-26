@@ -1,44 +1,65 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
-
-interface User {
-  id: string;
-  name: string;
-  email: string;
-  role?: string;
-  storeName?: string;
-}
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { authService, AuthUser } from '@/services/authService';
 
 interface AuthContextType {
-  user: User | null;
+  user: AuthUser | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (email: string, password: string, name?: string) => void;
-  register: (name: string, email: string, password: string) => void;
+  login: (email: string, password: string) => Promise<void>;
+  register: (name: string, email: string, password: string, storeName: string, role: string) => Promise<void>;
   logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  // TODO: Replace with Neon DB API call — no localStorage, pure in-memory state
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoading] = useState<boolean>(false);
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  const login = (email: string, _password: string, name?: string) => {
-    // TODO: Replace with Neon DB API call → POST /api/auth/login
-    setUser({ id: '1', name: name || email.split('@')[0], email });
+  // On mount: restore session from stored token
+  useEffect(() => {
+    const token = localStorage.getItem('access_token');
+    if (!token) {
+      setIsLoading(false);
+      return;
+    }
+    authService.getMe()
+      .then(setUser)
+      .catch(() => {
+        authService.logout();
+        setUser(null);
+      })
+      .finally(() => setIsLoading(false));
+  }, []);
+
+  const login = async (email: string, password: string): Promise<void> => {
+    const userData = await authService.login(email, password);
+    setUser(userData);
   };
 
-  const register = (name: string, email: string, _password: string) => {
-    // TODO: Replace with Neon DB API call → POST /api/auth/register
-    setUser({ id: '1', name, email });
+  const register = async (
+    name: string,
+    email: string,
+    password: string,
+    storeName: string,
+    role: string
+  ): Promise<void> => {
+    const userData = await authService.register({
+      name,
+      email,
+      password,
+      store_name: storeName,
+      role,
+    });
+    setUser(userData);
   };
 
-  const logout = () => {
+  const logout = (): void => {
+    authService.logout();
     setUser(null);
   };
 
-  const value = {
+  const value: AuthContextType = {
     user,
     isAuthenticated: !!user,
     isLoading,
