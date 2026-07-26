@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: techstock-backend
+    env: python
+    buildCommand: "./build.sh"
+    startCommand: "gunicorn techstock.wsgi:application --bind 0.0.0.0:$PORT"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: DATABASE_URL
+        fromDatabase:
+          name: techstock-db
+          property: connectionString
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+      - key: CORS_ALLOWED_ORIGINS
+        value: "https://techstock-frontend.vercel.app"
+      - key: DEBUG
+        value: "False"
+
+databases:
+  - name: techstock-db
+    databaseName: techstock
+    user: techstock_user
