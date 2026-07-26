@@ -8,6 +8,7 @@ from apps.authentication.models import Store
 import random
 from datetime import timedelta
 from django.utils import timezone
+import calendar
 
 class PriceTrackingView(views.APIView):
     permission_classes = [IsAuthenticated]
@@ -99,3 +100,40 @@ class PriceSuggestionsView(views.APIView):
 
     def get(self, request):
         return Response([]) # Stub for now
+
+class PricePredictionView(views.APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, product_id):
+        try:
+            store = Store.objects.get(user=request.user)
+            item = InventoryItem.objects.get(id=product_id, store=store)
+            
+            base = float(item.selling_price)
+            now = timezone.now()
+            
+            # Generate mock historical data
+            historical = []
+            predicted = []
+            for i in range(6, 0, -1):
+                month_date = now - timedelta(days=30 * i)
+                month_name = calendar.month_abbr[month_date.month]
+                historical.append({"month": month_name, "price": round(base * random.uniform(0.95, 1.05), 2)})
+            
+            # Generate mock predictions
+            for i in range(1, 4):
+                month_date = now + timedelta(days=30 * i)
+                month_name = calendar.month_abbr[month_date.month]
+                predicted.append({"month": month_name, "price": round(base * random.uniform(0.98, 1.08), 2)})
+            
+            return Response({
+                "product_id": str(item.id),
+                "product_name": item.name,
+                "historical": historical,
+                "predicted": predicted,
+                "trend": "up",
+                "confidence": 75,
+                "recommendation": f"Prices for {item.name} are expected to rise slightly."
+            })
+        except InventoryItem.DoesNotExist:
+            return Response({"detail": "Product not found."}, status=status.HTTP_404_NOT_FOUND)

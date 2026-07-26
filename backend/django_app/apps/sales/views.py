@@ -8,6 +8,7 @@ from .serializers import SaleRecordSerializer, RecordSalePayloadSerializer
 from apps.inventory.models import InventoryItem
 from apps.authentication.models import Store
 from django.utils import timezone
+import random
 
 class RecordSaleView(views.APIView):
     permission_classes = [IsAuthenticated]
@@ -82,3 +83,25 @@ class SalesHistoryView(views.APIView):
             "category_breakdown": [], # Simplified for this demo
             "top_sellers": [] # Simplified for this demo
         })
+
+class SuggestPriceView(views.APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, product_id):
+        try:
+            store = Store.objects.get(user=request.user)
+            product = InventoryItem.objects.get(id=product_id, store=store)
+            
+            # Mock price suggestion based on purchase price
+            base = float(product.purchase_price)
+            suggested = round(base * 1.15, 2)  # 15% markup
+            competitor_avg = round(base * random.uniform(1.10, 1.20), 2)
+            
+            return Response({
+                "suggested_price": suggested,
+                "competitor_avg": competitor_avg,
+                "margin_at_suggested": round((suggested - base) / base * 100, 1) if base > 0 else 0,
+                "reasoning": f"Based on purchase price of ₹{base}, a 15% markup gives competitive margin."
+            })
+        except InventoryItem.DoesNotExist:
+            return Response({"detail": "Product not found."}, status=status.HTTP_404_NOT_FOUND)

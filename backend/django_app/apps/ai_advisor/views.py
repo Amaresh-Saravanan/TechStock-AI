@@ -120,3 +120,113 @@ class ChatStatusView(views.APIView):
             "model": None,
             "message": "Missing API Key"
         })
+
+class AnalyticsView(views.APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        store = Store.objects.get(user=request.user)
+        sales = SaleRecord.objects.filter(store=store)
+        
+        # Aggregate monthly revenue
+        monthly_data = {}
+        category_data = {}
+        seller_data = {}
+        profit_trend = []
+        
+        for sale in sales:
+            month = sale.sold_at.strftime('%Y-%m')
+            if month not in monthly_data:
+                monthly_data[month] = {"month": month, "revenue": 0, "profit": 0}
+            monthly_data[month]["revenue"] += float(sale.sold_price * sale.quantity)
+            monthly_data[month]["profit"] += float(sale.profit)
+            
+            cat = sale.category
+            if cat not in category_data:
+                category_data[cat] = {"category": cat, "revenue": 0, "profit": 0, "count": 0}
+            category_data[cat]["revenue"] += float(sale.sold_price * sale.quantity)
+            category_data[cat]["profit"] += float(sale.profit)
+            category_data[cat]["count"] += sale.quantity
+            
+            name = sale.product_name
+            if name not in seller_data:
+                seller_data[name] = {"name": name, "total_sold": 0, "revenue": 0, "margin": 0}
+            seller_data[name]["total_sold"] += sale.quantity
+            seller_data[name]["revenue"] += float(sale.sold_price * sale.quantity)
+        
+        return Response({
+            "monthly_revenue": list(monthly_data.values()),
+            "category_breakdown": list(category_data.values()),
+            "top_sellers": sorted(seller_data.values(), key=lambda x: x["total_sold"], reverse=True)[:10],
+            "profit_trend": profit_trend
+        })
+
+class RecommendationsView(views.APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        store = Store.objects.get(user=request.user)
+        inventory = InventoryItem.objects.filter(store=store)
+        
+        recommendations = []
+        
+        # Dead stock recommendations
+        dead_stock = inventory.filter(quantity__gt=0, last_sold_days__gte=90)
+        for item in dead_stock[:5]:
+            recommendations.append({
+                "id": str(item.id),
+                "type": "dead_stock",
+                "product_name": item.name,
+                "message": f"{item.name} hasn't sold in {item.last_sold_days} days. Consider a clearance sale.",
+                "priority": "high",
+                "opportunity_score": 85
+            })
+        
+        # Low stock recommendations
+        low_stock = inventory.filter(quantity__gt=0, quantity__lte=5)
+        for item in low_stock[:5]:
+            recommendations.append({
+                "id": str(item.id),
+                "type": "restock",
+                "product_name": item.name,
+                "message": f"{item.name} is running low with only {item.quantity} units left.",
+                "priority": "medium",
+                "opportunity_score": 60
+            })
+        
+        return Response(recommendations)
+
+class AlertsView(views.APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        store = Store.objects.get(user=request.user)
+        inventory = InventoryItem.objects.filter(store=store)
+        
+        alerts = []
+        
+        # Out of stock alerts
+        out_of_stock = inventory.filter(quantity=0)
+        for item in out_of_stock[:5]:
+            alerts.append({
+                "id": str(item.id),
+                "type": "out_of_stock",
+                "product_name": item.name,
+                "message": f"{item.name} is out of stock!",
+                "severity": "critical",
+                "created_at": item.updated_at.isoformat()
+            })
+        
+        # Low stock alerts
+        low_stock = inventory.filter(quantity__gt=0, quantity__lte=5)
+        for item in low_stock[:5]:
+            alerts.append({
+                "id": str(item.id),
+                "type": "low_stock",
+                "product_name": item.name,
+                "message": f"{item.name} has low stock ({item.quantity} units).",
+                "severity": "warning",
+                "created_at": item.updated_at.isoformat()
+            })
+        
+        return Response(alerts)

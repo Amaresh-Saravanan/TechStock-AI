@@ -17,7 +17,7 @@ env = environ.Env(
     DEBUG=(bool, True),
     DATABASE_URL=(str, f'sqlite:///{BASE_DIR / "db.sqlite3"}'),
     DJANGO_SECRET_KEY=(str, 'dev-django-secret-key-change-in-production'),
-    CORS_ALLOWED_ORIGINS=(list, ['http://localhost:5173', 'http://localhost:5174']),
+    CORS_ALLOWED_ORIGINS=(list, ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:8080']),
     GEMINI_API_KEY=(str, ''),
 )
 
@@ -125,7 +125,7 @@ SIMPLE_JWT = {
 # ── CORS ──────────────────────────────────────────────────────────────────────
 CORS_ALLOWED_ORIGINS = env.list(
     'CORS_ALLOWED_ORIGINS',
-    default=['http://localhost:5173', 'http://localhost:5174']
+    default=['http://localhost:5173', 'http://localhost:5174', 'http://localhost:8080']
 )
 CORS_ALLOW_CREDENTIALS = True
 
